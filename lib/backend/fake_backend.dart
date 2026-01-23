@@ -14,13 +14,48 @@ class FakeBackend implements Backend {
   final List<Exhibition> _exhibitions = [];
   final List<ExhibitionBooking> _exhibitionBookings = [];
 
+  FakeBackend() {
+    // ✅ Seed exhibitions ONCE so customer can book and admin can view bookings
+    if (_exhibitions.isEmpty) {
+      _exhibitions.addAll([
+        Exhibition(
+          id: "ex_001",
+          title: "Modern Art Showcase",
+          venue: "Chennai Art Hall",
+          dateTime: DateTime.now().add(const Duration(days: 7)),
+          description: "A curated set of modern artworks from rising artists.",
+          totalSeats: 120,
+          bookedSeats: 0,
+          pricePerSeat: 150,
+          imagePath: "assets/exhibition1.jpg", // change to your asset
+          isArchived: false,
+        ),
+        Exhibition(
+          id: "ex_002",
+          title: "Photography Night",
+          venue: "Bangalore Gallery",
+          dateTime: DateTime.now().add(const Duration(days: 14)),
+          description: "A photography exhibition with live artist talks.",
+          totalSeats: 80,
+          bookedSeats: 0,
+          pricePerSeat: 200,
+          imagePath: "assets/exhibition2.jpg", // change to your asset
+          isArchived: false,
+        ),
+      ]);
+    }
+  }
+
   @override
   AppUser? get currentUser => _currentUser;
 
   // ---------------- AUTH ----------------
 
   @override
-  Future<AppUser> login({required String email, required String password}) async {
+  Future<AppUser> login({
+    required String email,
+    required String password,
+  }) async {
     await Future.delayed(const Duration(milliseconds: 120));
 
     // Admin login
@@ -42,7 +77,6 @@ class FakeBackend implements Backend {
       orElse: () => throw Exception('No account found. Please register.'),
     );
 
-    // Fake backend: no password stored/checked for customers
     _currentUser = user;
     return user;
   }
@@ -77,6 +111,30 @@ class FakeBackend implements Backend {
   Future<void> logout() async {
     await Future.delayed(const Duration(milliseconds: 60));
     _currentUser = null;
+  }
+
+  // ---------------- PROFILE ----------------
+
+  @override
+  Future<AppUser> updateProfile({
+    required String name,
+    required String phone,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    final me = _currentUser;
+    if (me == null) throw Exception('Please login first.');
+
+    final updated = me.copyWith(name: name, phone: phone);
+
+    // Update list (customers exist in _users)
+    final idx = _users.indexWhere((u) => u.id == me.id);
+    if (idx != -1) {
+      _users[idx] = updated;
+    }
+
+    _currentUser = updated;
+    return updated;
   }
 
   // ---------------- ORDERS ----------------
@@ -163,9 +221,7 @@ class FakeBackend implements Backend {
     if (me == null) throw Exception('Please login first.');
     if (me.role != Role.customer) throw Exception('Login as customer');
 
-    if (rating < 1 || rating > 5) {
-      throw Exception('Rating must be 1–5');
-    }
+    if (rating < 1 || rating > 5) throw Exception('Rating must be 1–5');
 
     final order = _orders.firstWhere(
       (o) => o.id == orderId,
@@ -180,9 +236,7 @@ class FakeBackend implements Backend {
       throw Exception('Can rate only after delivery');
     }
 
-    if (order.rating != null) {
-      throw Exception('Already rated');
-    }
+    if (order.rating != null) throw Exception('Already rated');
 
     order.rating = rating;
     final trimmed = (review ?? '').trim();
@@ -200,7 +254,6 @@ class FakeBackend implements Backend {
       orElse: () => throw Exception('Order not found'),
     );
 
-    // ✅ Deleting review updates everywhere because UI reads from backend.
     order.rating = null;
     order.review = null;
     order.ratedAt = null;

@@ -1,12 +1,13 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+
 import 'package:artiva/widgets/admin_scaffold.dart';
 import 'package:artiva/data/artwork_data.dart';
 
 class AddArtworkPage extends StatefulWidget {
   final int? editIndex; // null = add, not null = edit
-
   const AddArtworkPage({super.key, this.editIndex});
 
   @override
@@ -15,9 +16,8 @@ class AddArtworkPage extends StatefulWidget {
 
 class _AddArtworkPageState extends State<AddArtworkPage> {
   final _formKey = GlobalKey<FormState>();
-  final picker = ImagePicker();
+  final ImagePicker _picker = ImagePicker();
 
-  // ✅ fixed category list (admin must choose only from this)
   static const List<String> categories = [
     "Painting",
     "Digital",
@@ -37,6 +37,9 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
   String coa = "Yes";
   String selectedCategory = "Painting";
 
+  bool _picking = false;
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
@@ -48,12 +51,16 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
       priceCtrl.text = _asString(art["price"]).replaceAll("₹", "").trim();
       descriptionCtrl.text = _asString(art["description"]);
 
-      // ✅ int -> string for controller
+      // ✅ safe int -> string
       quantityCtrl.text = _asInt(art["totalQuantity"]).toString();
 
       imagePath = _asString(art["image"]);
-      selectedMaterial = _asString(art["paper"]).isEmpty ? "Canvas" : _asString(art["paper"]);
-      coa = _asString(art["coa"]).isEmpty ? "Yes" : _asString(art["coa"]);
+
+      final paper = _asString(art["paper"]);
+      selectedMaterial = paper.isEmpty ? "Canvas" : paper;
+
+      final coaSaved = _asString(art["coa"]);
+      coa = coaSaved.isEmpty ? "Yes" : coaSaved;
 
       final savedCat = _asString(art["category"]);
       selectedCategory = categories.contains(savedCat) ? savedCat : "Painting";
@@ -70,25 +77,53 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
   }
 
   Future<void> _pickImage() async {
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) setState(() => imagePath = picked.path);
+    if (_picking) return;
+    setState(() => _picking = true);
+
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+
+      if (!mounted) return;
+
+      if (picked == null) return;
+      setState(() => imagePath = picked.path);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Image pick failed: ${e.toString()}")),
+      );
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
   }
 
-  void _saveArtwork() {
+  Future<void> _saveArtwork() async {
+    if (_saving) return;
+    FocusScope.of(context).unfocus();
+
     if (!_formKey.currentState!.validate()) return;
 
-    if (imagePath == null || imagePath!.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please upload an image")),
-      );
+    final img = (imagePath ?? "").trim();
+    if (img.isEmpty) {
+      _snack("Please upload an image");
       return;
+    }
+
+    // ✅ if file path, ensure file exists (avoids Image.file crash)
+    if (!img.startsWith("assets/")) {
+      final f = File(img);
+      if (!await f.exists()) {
+        _snack("Selected image file not found. Pick again.");
+        return;
+      }
     }
 
     final totalQty = int.tryParse(quantityCtrl.text.trim()) ?? 0;
     if (totalQty <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enter a valid quantity")),
-      );
+      _snack("Enter a valid quantity");
       return;
     }
 
@@ -99,41 +134,52 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
 
     // ✅ don’t allow totalQuantity < soldQuantity when editing
     if (widget.editIndex != null && totalQty < soldQty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Total quantity cannot be less than sold ($soldQty)")),
-      );
+      _snack("Total quantity cannot be less than sold ($soldQty)");
       return;
     }
 
-    final artwork = <String, dynamic>{
-      "id": widget.editIndex != null
-          ? ArtworkData.artworks[widget.editIndex!]["id"]
-          : DateTime.now().millisecondsSinceEpoch.toString(),
-      "title": titleCtrl.text.trim(),
-      "category": selectedCategory,
-      "price": "₹${priceCtrl.text.trim()}",
-      "image": imagePath!, // file path or asset path
-      "rating": widget.editIndex != null
-          ? (ArtworkData.artworks[widget.editIndex!]["rating"] ?? "0.0")
-          : "0.0",
-      "paper": selectedMaterial,
-      "size_cm": "-",
-      "size_in": "-",
-      "coa": coa,
-      "description": descriptionCtrl.text.trim(),
+    setState(() => _saving = true);
 
-      // ✅ store as int
-      "totalQuantity": totalQty,
-      "soldQuantity": soldQty,
-    };
+    try {
+      final artwork = <String, dynamic>{
+        "id": widget.editIndex != null
+            ? ArtworkData.artworks[widget.editIndex!]["id"]
+            : DateTime.now().millisecondsSinceEpoch.toString(),
 
-    if (widget.editIndex != null) {
-      ArtworkData.artworks[widget.editIndex!] = artwork;
-    } else {
-      ArtworkData.artworks.add(artwork);
+        "title": titleCtrl.text.trim(),
+        "category": selectedCategory,
+        "price": "₹${priceCtrl.text.trim()}",
+        "image": img,
+
+        // keep rating if edit
+        "rating": widget.editIndex != null
+            ? (ArtworkData.artworks[widget.editIndex!]["rating"] ?? "0.0")
+            : "0.0",
+
+        "paper": selectedMaterial,
+        "size_cm": "-",
+        "size_in": "-",
+        "coa": coa,
+        "description": descriptionCtrl.text.trim(),
+
+        // ✅ store as int
+        "totalQuantity": totalQty,
+        "soldQuantity": soldQty,
+      };
+
+      if (widget.editIndex != null) {
+        ArtworkData.artworks[widget.editIndex!] = artwork;
+      } else {
+        ArtworkData.artworks.add(artwork);
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      _snack(e.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-
-    Navigator.pop(context, true);
   }
 
   @override
@@ -150,21 +196,24 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
             children: [
               // ✅ IMAGE PICKER
               GestureDetector(
-                onTap: _pickImage,
+                onTap: _picking ? null : _pickImage,
                 child: Container(
                   height: 160,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: Colors.grey),
+                    color: Colors.white,
                   ),
-                  child: (imagePath == null || imagePath!.isEmpty)
-                      ? const Center(child: Text("Tap to upload image"))
+                  child: (imagePath == null || imagePath!.trim().isEmpty)
+                      ? Center(
+                          child: Text(
+                            _picking ? "Opening gallery..." : "Tap to upload image",
+                          ),
+                        )
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(14),
-                          child: imagePath!.startsWith("assets/")
-                              ? Image.asset(imagePath!, fit: BoxFit.cover)
-                              : Image.file(File(imagePath!), fit: BoxFit.cover),
+                          child: _previewImage(imagePath!),
                         ),
                 ),
               ),
@@ -181,24 +230,34 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
                   items: categories
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
-                  onChanged: (v) => setState(() => selectedCategory = v ?? "Painting"),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? "Select a category" : null,
+                  onChanged: (v) =>
+                      setState(() => selectedCategory = v ?? "Painting"),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? "Select a category" : null,
                   decoration: _decor("Category"),
                 ),
               ),
 
-              _input("Price (without ₹)", priceCtrl, keyboard: TextInputType.number),
-              _input("Total Quantity", quantityCtrl, keyboard: TextInputType.number),
+              _input(
+                "Price (without ₹)",
+                priceCtrl,
+                keyboard: TextInputType.number,
+              ),
+              _input(
+                "Total Quantity",
+                quantityCtrl,
+                keyboard: TextInputType.number,
+              ),
 
               const SizedBox(height: 14),
 
-              DropdownButtonFormField(
+              DropdownButtonFormField<String>(
                 value: selectedMaterial,
                 items: const [
                   DropdownMenuItem(value: "Canvas", child: Text("Canvas")),
                   DropdownMenuItem(value: "Art Paper", child: Text("Art Paper")),
                 ],
-                onChanged: (v) => setState(() => selectedMaterial = v!),
+                onChanged: (v) => setState(() => selectedMaterial = v ?? "Canvas"),
                 decoration: _decor("Material"),
               ),
 
@@ -209,13 +268,13 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
                   Radio<String>(
                     value: "Yes",
                     groupValue: coa,
-                    onChanged: (v) => setState(() => coa = v!),
+                    onChanged: (v) => setState(() => coa = v ?? "Yes"),
                   ),
                   const Text("COA Yes"),
                   Radio<String>(
                     value: "No",
                     groupValue: coa,
-                    onChanged: (v) => setState(() => coa = v!),
+                    onChanged: (v) => setState(() => coa = v ?? "No"),
                   ),
                   const Text("COA No"),
                 ],
@@ -236,14 +295,42 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: _saveArtwork,
-                  child: Text(widget.editIndex == null ? "Add Artwork" : "Update Artwork"),
+                  onPressed: _saving ? null : _saveArtwork,
+                  child: Text(
+                    _saving
+                        ? "SAVING..."
+                        : (widget.editIndex == null ? "Add Artwork" : "Update Artwork"),
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _previewImage(String path) {
+    if (path.startsWith("assets/")) {
+      return Image.asset(
+        path,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _imgError(),
+      );
+    }
+
+    return Image.file(
+      File(path),
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _imgError(),
+    );
+  }
+
+  Widget _imgError() {
+    return Container(
+      color: Colors.grey.shade200,
+      alignment: Alignment.center,
+      child: const Icon(Icons.image_not_supported),
     );
   }
 
@@ -268,6 +355,10 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
       labelText: label,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
     );
+  }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   // ---------- helpers ----------

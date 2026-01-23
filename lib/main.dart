@@ -16,37 +16,33 @@ void main() {
 class ArtivaApp extends StatelessWidget {
   const ArtivaApp({super.key});
 
-  Widget _startScreen() {
-    final user = authService.currentUser;
-
-    // Not logged in
+  Widget _startScreen(AppUser? user) {
     if (user == null) return const WelcomeScreen();
-
-    // Logged in
     if (user.role == Role.admin) return const AdminDashboard();
     return const ArtHomePage();
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Artiva',
-
-      // ✅ Use home instead of forcing initialRoute '/'
-      home: _startScreen(),
-
-      routes: {
-        '/welcome': (context) => const WelcomeScreen(),
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/home': (context) => const ArtHomePage(),
-        '/admin': (context) => const AdminDashboard(),
+    return ValueListenableBuilder<AppUser?>(
+      valueListenable: authService.userNotifier,
+      builder: (context, user, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Artiva',
+          home: _startScreen(user),
+          routes: {
+            '/welcome': (context) => const WelcomeScreen(),
+            '/login': (context) => const LoginScreen(),
+            '/register': (context) => const RegisterScreen(),
+            '/home': (context) => const ArtHomePage(),
+            '/admin': (context) => const AdminDashboard(),
+          },
+          onUnknownRoute: (_) => MaterialPageRoute(
+            builder: (context) => const WelcomeScreen(),
+          ),
+        );
       },
-
-      onUnknownRoute: (_) => MaterialPageRoute(
-        builder: (context) => const WelcomeScreen(),
-      ),
     );
   }
 }

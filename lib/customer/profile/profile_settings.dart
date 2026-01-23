@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
+import 'package:artiva/auth/auth_service.dart';
 
 class ProfileSettingsPage extends StatefulWidget {
   const ProfileSettingsPage({super.key});
@@ -10,9 +11,21 @@ class ProfileSettingsPage extends StatefulWidget {
 }
 
 class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
-  final _nameController = TextEditingController(text: "John Doe");
-  final _emailController = TextEditingController(text: "john@example.com");
-  final _phoneController = TextEditingController(text: "9876543210");
+  late final TextEditingController _nameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _phoneController;
+
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = authService.currentUser;
+
+    _nameController = TextEditingController(text: user?.name ?? "");
+    _emailController = TextEditingController(text: user?.email ?? "");
+    _phoneController = TextEditingController(text: user?.phone ?? "");
+  }
 
   @override
   void dispose() {
@@ -22,8 +35,14 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     super.dispose();
   }
 
-  void _save() {
-    FocusScope.of(context).unfocus(); // hide keyboard
+  Future<void> _save() async {
+    FocusScope.of(context).unfocus();
+
+    final user = authService.currentUser;
+    if (user == null) {
+      _toast("Please login first.");
+      return;
+    }
 
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
@@ -38,14 +57,25 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Profile updated")),
-    );
+    setState(() => _saving = true);
 
-    // Later: save to Firebase
+    try {
+      await authService.updateProfile(name: name, phone: phone);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Profile updated")));
+
+      Navigator.pop(context);
+    } catch (e) {
+      _toast(e.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   void _toast(String msg) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
@@ -55,7 +85,6 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       currentIndex: -1,
       title: "Profile Settings",
       body: SingleChildScrollView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
           20,
           20,
@@ -64,27 +93,13 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
         ),
         child: Column(
           children: [
+            _field("Name", _nameController, Icons.person, true),
+            _field("Email", _emailController, Icons.email, false),
             _field(
-              label: "Name",
-              controller: _nameController,
-              icon: Icons.person,
-              editable: true,
-              keyboard: TextInputType.name,
-              textCapitalization: TextCapitalization.words,
-            ),
-            _field(
-              label: "Email",
-              controller: _emailController,
-              icon: Icons.email,
-              editable: false, // ✅ readOnly, not disabled
-              keyboard: TextInputType.emailAddress,
-            ),
-            _field(
-              label: "Phone",
-              controller: _phoneController,
-              icon: Icons.phone,
-              editable: true,
-              keyboard: TextInputType.phone,
+              "Phone",
+              _phoneController,
+              Icons.phone,
+              true,
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(10),
@@ -95,16 +110,16 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: _save,
+                onPressed: _saving ? null : _save,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE16417),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: const Text(
-                  "Save Changes",
-                  style: TextStyle(color: Colors.white),
+                child: Text(
+                  _saving ? "SAVING..." : "Save Changes",
+                  style: const TextStyle(color: Colors.white),
                 ),
               ),
             ),
@@ -114,40 +129,29 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     );
   }
 
-  Widget _field({
-    required String label,
-    required TextEditingController controller,
-    required IconData icon,
-    required bool editable,
-    TextInputType keyboard = TextInputType.text,
-    TextCapitalization textCapitalization = TextCapitalization.none,
+  Widget _field(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+    bool editable, {
     List<TextInputFormatter>? inputFormatters,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          TextField(
-            controller: controller,
-            readOnly: !editable, // ✅ better than enabled:false
-            keyboardType: keyboard,
-            textCapitalization: textCapitalization,
-            inputFormatters: inputFormatters,
-            decoration: InputDecoration(
-              prefixIcon: Icon(icon),
-              suffixIcon: editable ? const Icon(Icons.edit, size: 18) : null,
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-            ),
+      child: TextField(
+        controller: controller,
+        readOnly: !editable,
+        inputFormatters: inputFormatters,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon),
+          filled: true,
+          fillColor: editable ? Colors.white : Colors.grey.shade200,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
           ),
-        ],
+        ),
       ),
     );
   }

@@ -26,7 +26,12 @@ class _ArtHomePageState extends State<ArtHomePage> {
     "Sketch",
   ];
 
-   
+  @override
+  void dispose() {
+    _searchCtrl.dispose(); // ✅ FIX: avoid memory leak
+    super.dispose();
+  }
+
   void _goToList({String? categoryOverride, String? queryOverride}) {
     final cat = categoryOverride ?? categories[selectedCategory];
     final q = (queryOverride ?? _searchCtrl.text).trim();
@@ -45,7 +50,11 @@ class _ArtHomePageState extends State<ArtHomePage> {
       currentIndex: 0,
       title: "Artiva",
       headerBottom: Column(
-        children: [_searchBar(), const SizedBox(height: 12), _categories()],
+        children: [
+          _searchBar(),
+          const SizedBox(height: 12),
+          _categories(),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.only(top: 14),
@@ -75,14 +84,14 @@ class _ArtHomePageState extends State<ArtHomePage> {
       child: TextField(
         controller: _searchCtrl,
         textInputAction: TextInputAction.search,
-        onSubmitted: (_) => _goToList(), // ✅ keyboard search press
+        onSubmitted: (_) => _goToList(),
         decoration: InputDecoration(
           hintText: "Search artworks",
           border: InputBorder.none,
           icon: const Icon(Icons.search),
           suffixIcon: IconButton(
             icon: const Icon(Icons.arrow_forward),
-            onPressed: () => _goToList(), // ✅ arrow press
+            onPressed: () => _goToList(),
           ),
         ),
       ),
@@ -97,14 +106,15 @@ class _ArtHomePageState extends State<ArtHomePage> {
         itemCount: categories.length,
         itemBuilder: (context, index) {
           final active = selectedCategory == index;
+
           return GestureDetector(
             onTap: () {
               setState(() => selectedCategory = index);
 
-              // ✅ open list page with this category
+              // If you WANT instant navigation, keep this line.
+              // If you don't want instant nav, delete next line.
               _goToList(categoryOverride: categories[index]);
             },
-
             child: Container(
               margin: EdgeInsets.only(right: 10, left: index == 0 ? 2 : 0),
               padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -177,7 +187,15 @@ class _ArtHomePageState extends State<ArtHomePage> {
               child: SizedBox(
                 width: 130,
                 height: double.infinity,
-                child: Image.asset("assets/home1.png", fit: BoxFit.cover),
+                child: Image.asset(
+                  "assets/home1.png",
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: Colors.white.withOpacity(0.2),
+                    child: const Icon(Icons.image_not_supported,
+                        color: Colors.white, size: 34),
+                  ),
+                ),
               ),
             ),
           ],
@@ -188,13 +206,13 @@ class _ArtHomePageState extends State<ArtHomePage> {
 
   Widget _artHorizontalList() {
     return SizedBox(
-      height: 300, // ✅ give enough height so card never overflows
+      height: 300,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 18),
         itemCount: ArtworkData.artworks.length,
         itemBuilder: (context, index) {
-          final art = ArtworkData.artworks[index]; // Map<String, String>
+          final art = ArtworkData.artworks[index];
 
           return Padding(
             padding: const EdgeInsets.only(right: 14),
@@ -202,7 +220,7 @@ class _ArtHomePageState extends State<ArtHomePage> {
               width: 160,
               height: 300,
               child: ArtworkCard(
-                artwork: art, // ✅ correct param name
+                artwork: art,
                 onTap: () {
                   Navigator.push(
                     context,

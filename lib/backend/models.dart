@@ -12,6 +12,19 @@ class AppUser {
     required this.phone,
     required this.role,
   });
+
+  AppUser copyWith({
+    String? name,
+    String? phone,
+  }) {
+    return AppUser(
+      id: id,
+      name: name ?? this.name,
+      email: email,
+      phone: phone ?? this.phone,
+      role: role,
+    );
+  }
 }
 
 enum Role { admin, customer }
@@ -22,8 +35,6 @@ enum OrderStatus { processing, shipped, delivered }
 
 class ArtworkOrder {
   final String id;
-
-  // IMPORTANT: use artworkId to compute rating per artwork
   final String artworkId;
   final String artTitle;
 
@@ -34,13 +45,12 @@ class ArtworkOrder {
   final String price;
   final String address;
 
-  final String? imagePath; // optional for later
+  final String? imagePath;
   final DateTime orderedAt;
 
   OrderStatus status;
 
-  // rating/review
-  int? rating; // 1..5
+  int? rating;
   String? review;
   DateTime? ratedAt;
 
@@ -63,7 +73,7 @@ class ArtworkOrder {
 }
 
 class ArtworkRatingSummary {
-  final double avgRating; // 0..5
+  final double avgRating;
   final int ratingCount;
 
   const ArtworkRatingSummary({
@@ -71,7 +81,6 @@ class ArtworkRatingSummary {
     required this.ratingCount,
   });
 
-  // so your UI can use r.label and r.count
   String get label => avgRating == 0 ? "0.0" : avgRating.toStringAsFixed(1);
   int get count => ratingCount;
 }
@@ -89,7 +98,7 @@ class Exhibition {
   int bookedSeats;
   int pricePerSeat;
 
-  String imagePath; // asset or file path
+  String imagePath;
   bool isArchived;
 
   Exhibition({

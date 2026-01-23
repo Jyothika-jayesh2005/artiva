@@ -15,6 +15,12 @@ abstract class Backend {
 
   Future<void> logout();
 
+  // ---------------- Profile ----------------
+  Future<AppUser> updateProfile({
+    required String name,
+    required String phone,
+  });
+
   // ---------------- Orders ----------------
   Future<List<ArtworkOrder>> getAllOrders(); // admin
   Future<List<ArtworkOrder>> getMyOrders(String userEmail); // customer
@@ -39,22 +45,21 @@ abstract class Backend {
 
   Future<void> deleteOrderReview(String orderId); // admin
 
-  // ⭐ used in ArtworkDetailsPage
   Future<ArtworkRatingSummary> getArtworkRating(String artworkId);
 
-  // ---------------- EXHIBITIONS ----------------
+  // ---------------- Exhibitions ----------------
   Future<List<Exhibition>> getExhibitions({bool includeArchived = false});
 
   Future<void> upsertExhibition(Exhibition exhibition); // admin create/update
 
   Future<void> setExhibitionArchived(String exhibitionId, bool archived); // admin
 
-  // ✅ used in ExhibitionPaymentPage
   Future<String> bookExhibition({
     required String exhibitionId,
     required int seats,
   });
 
   Future<List<ExhibitionBooking>> getAllExhibitionBookings(); // admin
+
   Future<List<ExhibitionBooking>> getMyExhibitionBookings(String userEmail); // customer
 }

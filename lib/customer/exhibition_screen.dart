@@ -23,7 +23,7 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
   @override
   Widget build(BuildContext context) {
     return CustomerScaffold(
-      currentIndex: -1,
+      currentIndex: 2,
       title: "Exhibitions",
       body: FutureBuilder<List<Exhibition>>(
         future: _load(),

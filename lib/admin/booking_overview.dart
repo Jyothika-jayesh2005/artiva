@@ -139,7 +139,7 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
     );
   }
 
-  // ------------------ ARTWORK ORDERS (FROM BACKEND) ------------------
+  // ✅ ARTWORK ORDERS (FROM BACKEND)
   Widget _artworkOrdersTab() {
     return FutureBuilder<List<ArtworkOrder>>(
       future: backend.getAllOrders(),

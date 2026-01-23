@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/backend/models.dart';
-
 import 'exhibition_payment_page.dart';
 
 class ExhibitionDetailPage extends StatelessWidget {
@@ -24,7 +23,11 @@ class ExhibitionDetailPage extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: _image(exhibition.imagePath),
+              child: SizedBox(
+                width: double.infinity, // ✅ force full width
+                height: 220,
+                child: _image(exhibition.imagePath),
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -62,7 +65,6 @@ class ExhibitionDetailPage extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
-
             const SizedBox(height: 20),
 
             SizedBox(
@@ -136,29 +138,51 @@ class ExhibitionDetailPage extends StatelessWidget {
   }
 
   Widget _image(String path) {
-    if (path.startsWith("assets/")) {
+    final p = (path).trim();
+
+    if (p.isEmpty) return _imgError();
+
+    // ✅ assets
+    if (p.startsWith("assets/")) {
       return Image.asset(
-        path,
-        height: 220,
+        p,
         width: double.infinity,
+        height: 220,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-          height: 220,
-          color: Colors.grey.shade200,
-          child: const Icon(Icons.image_not_supported),
-        ),
+        alignment: Alignment.center, // ✅ center
+        errorBuilder: (_, __, ___) => _imgError(),
       );
     }
 
+    // ✅ file path: check exists first
+    final file = File(p);
+    if (!file.existsSync()) {
+      return _imgError(text: "Image file not found");
+    }
+
     return Image.file(
-      File(path),
-      height: 220,
+      file,
       width: double.infinity,
+      height: 220,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
-        height: 220,
-        color: Colors.grey.shade200,
-        child: const Icon(Icons.image_not_supported),
+      alignment: Alignment.center, // ✅ center
+      errorBuilder: (_, __, ___) => _imgError(),
+    );
+  }
+
+  Widget _imgError({String text = "Image not available"}) {
+    return Container(
+      width: double.infinity,
+      height: 220,
+      color: Colors.grey.shade200,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.image_not_supported),
+          const SizedBox(height: 6),
+          Text(text, style: const TextStyle(color: Colors.black54)),
+        ],
       ),
     );
   }
