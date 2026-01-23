@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:artiva/data/user_data.dart';
+
+import 'package:artiva/auth/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -18,6 +19,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
+  bool _loading = false;
 
   static const Color primary = Color(0xFFE16417);
   static const Color secondary = Color(0xFF80431F);
@@ -55,7 +57,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 20),
-
                     const Text(
                       'Artiva',
                       style: TextStyle(
@@ -65,7 +66,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         letterSpacing: 1.2,
                       ),
                     ),
-
                     const SizedBox(height: 40),
 
                     _buildInputField(
@@ -75,7 +75,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       keyboardType: TextInputType.name,
                       textCapitalization: TextCapitalization.words,
                     ),
-
                     const SizedBox(height: 18),
 
                     _buildInputField(
@@ -84,7 +83,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                     ),
-
                     const SizedBox(height: 18),
 
                     _buildInputField(
@@ -97,7 +95,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         LengthLimitingTextInputFormatter(10),
                       ],
                     ),
-
                     const SizedBox(height: 18),
 
                     _buildInputField(
@@ -112,12 +109,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               : Icons.visibility_off,
                           color: Colors.white70,
                         ),
-                        onPressed: () {
-                          setState(() => _passwordVisible = !_passwordVisible);
-                        },
+                        onPressed: _loading
+                            ? null
+                            : () {
+                                setState(
+                                    () => _passwordVisible = !_passwordVisible);
+                              },
                       ),
                     ),
-
                     const SizedBox(height: 18),
 
                     _buildInputField(
@@ -132,21 +131,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               : Icons.visibility_off,
                           color: Colors.white70,
                         ),
-                        onPressed: () {
-                          setState(() => _confirmPasswordVisible =
-                              !_confirmPasswordVisible);
-                        },
+                        onPressed: _loading
+                            ? null
+                            : () {
+                                setState(() => _confirmPasswordVisible =
+                                    !_confirmPasswordVisible);
+                              },
                       ),
                     ),
 
                     const SizedBox(height: 30),
 
-                    // ✅ same button style as login (white bg, orange text)
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _handleRegister,
+                        onPressed:
+                            _loading ? null : () async => await _handleRegister(),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           elevation: 0,
@@ -154,9 +155,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             borderRadius: BorderRadius.circular(30),
                           ),
                         ),
-                        child: const Text(
-                          "CREATE ACCOUNT",
-                          style: TextStyle(
+                        child: Text(
+                          _loading ? "PLEASE WAIT..." : "CREATE ACCOUNT",
+                          style: const TextStyle(
                             color: primary,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -176,8 +177,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           style: TextStyle(color: Colors.white70),
                         ),
                         GestureDetector(
-                          onTap: () =>
-                              Navigator.pushReplacementNamed(context, '/login'),
+                          onTap: _loading
+                              ? null
+                              : () => Navigator.pushReplacementNamed(
+                                  context, '/login'),
                           child: const Text(
                             'Login',
                             style: TextStyle(
@@ -201,9 +204,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // ================= LOGIC =================
-
-  void _handleRegister() async {
+  Future<void> _handleRegister() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
@@ -240,36 +241,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    final exists = UserData.users.any(
-      (u) => (u["email"] ?? "").toString().toLowerCase() == email.toLowerCase(),
-    );
-    if (exists) {
-      _snack("Email already registered. Please login.");
-      return;
+    setState(() => _loading = true);
+
+    try {
+      await authService.register(
+        name: name,
+        email: email,
+        phone: phone,
+        password: pass,
+      );
+
+      if (!mounted) return;
+
+      _snack("Account created. Please login.");
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+
+      Navigator.pushReplacementNamed(context, '/login');
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-
-    UserData.users.add({
-      "name": name,
-      "email": email,
-      "phone": phone,
-      "password": pass,
-    });
-
-    _snack("Account created. Please login.");
-
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-
-    Navigator.pushReplacementNamed(context, '/login');
   }
 
   void _snack(String msg) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
     );
   }
-
-  // ================= UI =================
 
   Widget _buildInputField({
     required String hint,
@@ -294,7 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         prefixIcon: Icon(icon, color: Colors.white70),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.black.withOpacity(0.25), // ✅ same as login
+        fillColor: Colors.black.withOpacity(0.25),
         contentPadding:
             const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
         border: OutlineInputBorder(

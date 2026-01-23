@@ -1,31 +1,31 @@
-import 'package:artiva/customer/profile/my_passes.dart';
 import 'package:flutter/material.dart';
-import '../widgets/customer_scaffold.dart';
-import '../data/pass_data.dart';
-import '../data/booking_data.dart';
+import 'package:artiva/widgets/customer_scaffold.dart';
 
-class ExhibitionPaymentPage extends StatelessWidget {
-  final String exhibitionId;
-  final String title;
-  final String venue;
-  final DateTime dateTime;
+import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/backend/models.dart';
+import 'package:artiva/auth/auth_service.dart';
+
+class ExhibitionPaymentPage extends StatefulWidget {
+  final Exhibition exhibition;
   final int seats;
-  final int pricePerSeat;
-  final int totalAmount;
 
   const ExhibitionPaymentPage({
     super.key,
-    required this.exhibitionId,
-    required this.title,
-    required this.venue,
-    required this.dateTime,
+    required this.exhibition,
     required this.seats,
-    required this.pricePerSeat,
-    required this.totalAmount,
   });
 
   @override
+  State<ExhibitionPaymentPage> createState() => _ExhibitionPaymentPageState();
+}
+
+class _ExhibitionPaymentPageState extends State<ExhibitionPaymentPage> {
+  bool _loading = false;
+
+  @override
   Widget build(BuildContext context) {
+    final total = widget.seats * widget.exhibition.pricePerSeat;
+
     return CustomerScaffold(
       currentIndex: -1,
       title: "Payment",
@@ -34,20 +34,20 @@ class ExhibitionPaymentPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionTitle("Exhibition Pass"),
-            _infoRow("Event", title),
-            _infoRow("Venue", venue),
-            _infoRow("Seats", seats.toString()),
-            _infoRow("Date", _formatDateTime(dateTime)),
-            const SizedBox(height: 6),
-            _infoRow("Price / Seat", "₹$pricePerSeat"),
-            _infoRow("Total Amount", "₹$totalAmount"),
-            const SizedBox(height: 24),
+            _title("Exhibition"),
+            _row("Title", widget.exhibition.title),
+            _row("Venue", widget.exhibition.venue),
+            _row("Seats", widget.seats.toString()),
+            _row("Price/Seat", "₹${widget.exhibition.pricePerSeat}"),
+            _row("Total", "₹$total"),
+            const SizedBox(height: 18),
+
             const Text(
               "Scan the QR code using any UPI app",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
             Center(
               child: Container(
                 width: 220,
@@ -70,35 +70,30 @@ class ExhibitionPaymentPage extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             const Center(
               child: Text(
                 "Google Pay • PhonePe • Paytm • BHIM",
                 style: TextStyle(fontSize: 13, color: Colors.grey),
               ),
             ),
-            const SizedBox(height: 10),
-            const Center(
-              child: Text(
-                "Complete the payment and tap Confirm",
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ),
+
             const Spacer(),
+
             SizedBox(
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: () => _success(context),
+                onPressed: _loading ? null : _confirmPayment,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE16417),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: const Text(
-                  "Confirm Payment",
-                  style: TextStyle(
+                child: Text(
+                  _loading ? "PLEASE WAIT..." : "Confirm Payment",
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -112,21 +107,56 @@ class ExhibitionPaymentPage extends StatelessWidget {
     );
   }
 
-  void _success(BuildContext context) {
-    final now = DateTime.now();
+  Widget _title(String t) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          t,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      );
 
-    // ✅ STOP DUPLICATE SAVE (if already paid for same exhibition at same time)
-    final alreadySaved = PassData.myPasses.any((p) =>
-        p["exhibitionId"] == exhibitionId &&
-        p["dateTime"] == dateTime &&
-        p["seats"] == seats);
+  Widget _row(String k, String v) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(k, style: const TextStyle(color: Colors.grey)),
+            Flexible(
+              child: Text(
+                v,
+                textAlign: TextAlign.right,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
 
-    if (alreadySaved) {
-      showDialog(
+  Future<void> _confirmPayment() async {
+    final user = authService.currentUser;
+    if (user == null) {
+      _snack("Please login first.");
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      final bookingId = await backend.bookExhibition(
+        exhibitionId: widget.exhibition.id,
+        seats: widget.seats,
+      );
+
+      if (!mounted) return;
+
+      await showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text("Already Confirmed"),
-          content: const Text("This pass is already saved."),
+          title: const Text("Booking Confirmed"),
+          content: Text(
+            "Your seats are booked.\n\nBooking ID: $bookingId",
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -135,95 +165,21 @@ class ExhibitionPaymentPage extends StatelessWidget {
           ],
         ),
       );
-      return;
+
+      if (!mounted) return;
+
+      // Go back to Exhibition list (2 pops: payment -> detail -> list)
+      Navigator.pop(context); // back to detail
+      Navigator.pop(context); // back to list
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-
-    // ✅ CUSTOMER SIDE (My Passes)
-    PassData.myPasses.add({
-      "exhibitionId": exhibitionId,
-      "title": title,
-      "venue": venue,
-      "dateTime": dateTime,
-      "seats": seats,
-      "pricePerSeat": pricePerSeat,
-      "totalAmount": totalAmount,
-      "paidAt": now,
-    });
-
-    // ✅ ADMIN SIDE (Booking Overview)
-    BookingData.exhibitionBookings.add({
-      "customerName": "Demo User", // replace later with real user session
-      "customerEmail": "demo@example.com",
-      "exhibitionId": exhibitionId,
-      "exhibitionTitle": title,
-      "venue": venue,
-      "seats": seats,
-      "pricePerSeat": pricePerSeat,
-      "totalAmount": totalAmount,
-      "bookedAt": now,
-    });
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text("Payment Successful"),
-        content: const Text("Your exhibition pass is confirmed."),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const MyPassesPage()),
-                (route) => route.isFirst,
-              );
-            },
-            child: const Text(
-              "View Passes",
-              style: TextStyle(color: Color(0xFFE16417)),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
-  Widget _sectionTitle(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(label, style: const TextStyle(color: Colors.grey)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDateTime(DateTime dt) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  ${two(dt.hour)}:${two(dt.minute)}";
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }

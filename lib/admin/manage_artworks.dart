@@ -24,6 +24,7 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
               context,
               MaterialPageRoute(builder: (_) => const AddArtworkPage()),
             );
+            if (!mounted) return;
             setState(() {}); // refresh after add
           },
         ),
@@ -36,11 +37,12 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
               itemBuilder: (context, index) {
                 final art = ArtworkData.artworks[index];
 
-                final int total =
-                    int.tryParse(art["totalQuantity"] ?? "0") ?? 0;
-                final int sold =
-                    int.tryParse(art["soldQuantity"] ?? "0") ?? 0;
+                final int total = _toInt(art["totalQuantity"]);
+                final int sold = _toInt(art["soldQuantity"]);
                 final int remaining = total - sold;
+
+                final String title = (art["title"] ?? "-").toString();
+                final String imagePath = (art["image"] ?? "").toString();
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 14),
@@ -50,15 +52,28 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                   child: ListTile(
                     leading: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.asset(
-                        art["image"]!,
-                        width: 55,
-                        height: 55,
-                        fit: BoxFit.cover,
-                      ),
+                      child: imagePath.startsWith("assets/")
+                          ? Image.asset(
+                              imagePath,
+                              width: 55,
+                              height: 55,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 55,
+                                height: 55,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.image_not_supported),
+                              ),
+                            )
+                          : Container(
+                              width: 55,
+                              height: 55,
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.image_not_supported),
+                            ),
                     ),
                     title: Text(
-                      art["title"]!,
+                      title,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Padding(
@@ -68,8 +83,7 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                             ? "In stock ($remaining left)"
                             : "Out of stock",
                         style: TextStyle(
-                          color:
-                              remaining > 0 ? Colors.green : Colors.red,
+                          color: remaining > 0 ? Colors.green : Colors.red,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -88,6 +102,7 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                                     AddArtworkPage(editIndex: index),
                               ),
                             );
+                            if (!mounted) return;
                             setState(() {}); // refresh after edit
                           },
                         ),
@@ -106,14 +121,21 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
     );
   }
 
+  // ✅ Safe conversion for dynamic -> int (fixes your crash)
+  int _toInt(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
   // ================= DELETE CONFIRMATION =================
   void _confirmDelete(int index) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Delete Artwork"),
-        content:
-            const Text("Are you sure you want to delete this artwork?"),
+        content: const Text("Are you sure you want to delete this artwork?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

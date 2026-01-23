@@ -1,36 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
-import '../../data/pass_data.dart';
+
+import 'package:artiva/auth/auth_service.dart';
+import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/backend/models.dart';
+
 import 'pass_detail_page.dart';
 
-class MyPassesPage extends StatelessWidget {
+class MyPassesPage extends StatefulWidget {
   const MyPassesPage({super.key});
+
+  @override
+  State<MyPassesPage> createState() => _MyPassesPageState();
+}
+
+class _MyPassesPageState extends State<MyPassesPage> {
+  Future<List<ExhibitionBooking>> _load() async {
+    final user = authService.currentUser;
+    if (user == null) throw Exception("Please login first.");
+    return backend.getMyExhibitionBookings(user.email);
+  }
 
   @override
   Widget build(BuildContext context) {
     return CustomerScaffold(
       currentIndex: -1,
       title: "My Passes",
-      body: PassData.myPasses.isEmpty
-          ? const Center(child: Text("No passes booked yet"))
-          : ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: PassData.myPasses.length,
-              itemBuilder: (context, index) {
-                final pass = PassData.myPasses[index];
+      body: FutureBuilder<List<ExhibitionBooking>>(
+        future: _load(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                final title = (pass["title"] ?? "-").toString();
-                final venue = (pass["venue"] ?? "-").toString();
-                final seats = (pass["seats"] ?? 0).toString();
+          if (snap.hasError) {
+            return Center(
+              child: Text(
+                snap.error.toString().replaceFirst('Exception: ', ''),
+              ),
+            );
+          }
+
+          final passes = snap.data ?? [];
+          if (passes.isEmpty) {
+            return const Center(child: Text("No passes booked yet"));
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async => setState(() {}),
+            child: ListView.builder(
+              padding: const EdgeInsets.all(20),
+              itemCount: passes.length,
+              itemBuilder: (context, index) {
+                final pass = passes[index];
 
                 return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
+                  onTap: () async {
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => PassDetailPage(pass: pass),
                       ),
                     );
+                    if (mounted) setState(() {}); // ✅ refresh after coming back
                   },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 14),
@@ -66,7 +98,7 @@ class MyPassesPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                title,
+                                pass.exhibitionTitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -76,7 +108,7 @@ class MyPassesPage extends StatelessWidget {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                venue,
+                                pass.venue,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -86,7 +118,7 @@ class MyPassesPage extends StatelessWidget {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                "Seats: $seats",
+                                "Seats: ${pass.seats}",
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -106,6 +138,9 @@ class MyPassesPage extends StatelessWidget {
                 );
               },
             ),
+          );
+        },
+      ),
     );
   }
 }

@@ -1,26 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
+import 'package:artiva/backend/models.dart';
 
 class PassDetailPage extends StatelessWidget {
-  final Map<String, dynamic> pass;
+  final ExhibitionBooking pass;
 
   const PassDetailPage({super.key, required this.pass});
 
   @override
   Widget build(BuildContext context) {
-    final title = (pass["title"] ?? "-").toString();
-    final venue = (pass["venue"] ?? "-").toString();
-    final seats = (pass["seats"] ?? 0).toString();
-    final pricePerSeat = (pass["pricePerSeat"] ?? 0).toString();
-    final totalAmount = (pass["totalAmount"] ?? 0).toString();
-
-    final DateTime? dt = pass["dateTime"] is DateTime ? pass["dateTime"] : null;
-    final DateTime? paidAt = pass["paidAt"] is DateTime ? pass["paidAt"] : null;
-
     return CustomerScaffold(
       currentIndex: -1,
       title: "Your Pass",
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Container(
           padding: const EdgeInsets.all(18),
@@ -39,26 +31,32 @@ class PassDetailPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                pass.exhibitionTitle,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 10),
 
-              _row(Icons.location_on, venue),
+              _row(Icons.location_on, pass.venue),
               const SizedBox(height: 8),
-              _row(Icons.calendar_today, dt == null ? "-" : _formatDateTime(dt)),
+              _row(Icons.event_seat, "Seats: ${pass.seats}"),
               const SizedBox(height: 8),
-              _row(Icons.event_seat, "Seats: $seats"),
+              _row(Icons.confirmation_number, "Booking ID: ${pass.id}"),
 
               const SizedBox(height: 16),
               const Divider(),
 
               const SizedBox(height: 10),
-              const Text("Payment", style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                "Payment",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
-              _kv("Price / Seat", "₹$pricePerSeat"),
-              _kv("Total", "₹$totalAmount"),
-              _kv("Paid At", paidAt == null ? "-" : _formatDateTime(paidAt)),
+              _kv("Price / Seat", "₹${pass.pricePerSeat}"),
+              _kv("Total", "₹${pass.totalAmount}"),
+              _kv("Booked At", _formatDateTime(pass.bookedAt)),
 
               const SizedBox(height: 18),
 
@@ -97,7 +95,12 @@ class PassDetailPage extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: Colors.grey),
         const SizedBox(width: 8),
-        Expanded(child: Text(text)),
+        Expanded(
+          child: Text(
+            text,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
@@ -109,7 +112,15 @@ class PassDetailPage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(k, style: const TextStyle(color: Colors.black54)),
-          Text(v, style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              v,
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
         ],
       ),
     );

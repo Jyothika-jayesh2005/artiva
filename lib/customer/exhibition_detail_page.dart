@@ -1,256 +1,164 @@
-import 'package:artiva/customer/exhibition_payment_page.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
-import '../widgets/customer_scaffold.dart';
-import '../data/exhibition_data.dart';
-import '../data/booking_data.dart';
-import '../models/exhibition_model.dart';
 
-class ExhibitionDetailPage extends StatefulWidget {
-  final String exhibitionId;
-  final String imagePath;
+import 'package:artiva/widgets/customer_scaffold.dart';
+import 'package:artiva/backend/models.dart';
 
-  const ExhibitionDetailPage({
-    super.key,
-    required this.exhibitionId,
-    required this.imagePath,
-  });
+import 'exhibition_payment_page.dart';
 
-  @override
-  State<ExhibitionDetailPage> createState() => _ExhibitionDetailPageState();
-}
+class ExhibitionDetailPage extends StatelessWidget {
+  final Exhibition exhibition;
+  const ExhibitionDetailPage({super.key, required this.exhibition});
 
-class _ExhibitionDetailPageState extends State<ExhibitionDetailPage> {
   @override
   Widget build(BuildContext context) {
-    final index =
-        ExhibitionData.exhibitions.indexWhere((e) => e.id == widget.exhibitionId);
-
-    if (index == -1) {
-      return CustomerScaffold(
-        title: "Exhibition",
-        currentIndex: -1,
-        body: const Center(child: Text("Exhibition not found")),
-      );
-    }
-
-    final Exhibition ex = ExhibitionData.exhibitions[index];
-    final remaining = ex.remainingSeats;
-    final totalAmount = ex.pricePerSeat * 1;
+    final remaining = exhibition.remainingSeats;
 
     return CustomerScaffold(
-      title: ex.title,
       currentIndex: -1,
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 20),
-        children: [
-          // ✅ SPACE BELOW HEADER
-          const SizedBox(height: 14),
+      title: "Exhibition Details",
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: _image(exhibition.imagePath),
+            ),
+            const SizedBox(height: 16),
 
-          // ✅ IMAGE WITH PADDING + SAME LOOK AS YOUR CARDS
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset(
-                widget.imagePath,
-                height: 230,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 230,
-                  color: Colors.grey.shade200,
-                  child: const Center(
-                    child: Icon(Icons.image_not_supported, size: 44),
-                  ),
-                ),
+            Text(
+              exhibition.title,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(exhibition.venue, style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 6),
+            Text(
+              _formatDateTime(exhibition.dateTime),
+              style: const TextStyle(color: Colors.black54),
+            ),
+            const SizedBox(height: 16),
+
+            const Text(
+              "Description",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(exhibition.description),
+            const SizedBox(height: 16),
+
+            Text(
+              "Price per seat: ₹${exhibition.pricePerSeat}",
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+
+            Text(
+              remaining > 0 ? "Remaining seats: $remaining" : "Sold out",
+              style: TextStyle(
+                color: remaining > 0 ? Colors.green : Colors.red,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
 
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  ex.title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
+            const SizedBox(height: 20),
 
-                Row(
-                  children: [
-                    const Icon(Icons.location_on, size: 18, color: Colors.grey),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text(ex.venue)),
-                  ],
-                ),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: remaining == 0
+                    ? null
+                    : () async {
+                        final seats = await _pickSeats(context, remaining);
+                        if (seats == null) return;
 
-                const SizedBox(height: 8),
-
-                Row(
-                  children: [
-                    const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
-                    const SizedBox(width: 6),
-                    Text(_formatDateTime(ex.dateTime)),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                Text(ex.description, style: const TextStyle(fontSize: 14)),
-
-                const SizedBox(height: 16),
-
-                Text(
-                  "Price / Seat: ₹${ex.pricePerSeat}",
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  "Starting Total (1 seat): ₹$totalAmount",
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-
-                const SizedBox(height: 16),
-
-                Text(
-                  "Seats: ${ex.bookedSeats}/${ex.totalSeats}  •  Remaining: $remaining",
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-
-                const SizedBox(height: 20),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: (ex.isClosed || ex.isFull)
-                        ? null
-                        : () => _bookSeats(context, index),
-                    child: Text(
-                      ex.isFull ? "Full" : (ex.isClosed ? "Closed" : "Book Pass"),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _bookSeats(BuildContext context, int index) async {
-    final ex = ExhibitionData.exhibitions[index];
-    final seatsCtrl = TextEditingController(text: "1");
-
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Book Pass"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("Available: ${ex.remainingSeats}"),
-            const SizedBox(height: 12),
-            TextField(
-              controller: seatsCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Number of seats",
-                border: OutlineInputBorder(),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ExhibitionPaymentPage(
+                              exhibition: exhibition,
+                              seats: seats,
+                            ),
+                          ),
+                        );
+                      },
+                child: Text(remaining == 0 ? "Sold Out" : "Book Seats"),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () async {
-              final seats = int.tryParse(seatsCtrl.text.trim()) ?? 0;
+      ),
+    );
+  }
 
-              if (seats <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Enter a valid seat count")),
-                );
-                return;
-              }
+  Future<int?> _pickSeats(BuildContext context, int maxSeats) async {
+    int selected = 1;
 
-              final latest = ExhibitionData.exhibitions[index];
-              final remaining = latest.remainingSeats;
-
-              if (seats > remaining) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Only $remaining seats available")),
-                );
-                return;
-              }
-
-              final totalAmount = seats * latest.pricePerSeat;
-
-              ExhibitionData.exhibitions[index] =
-                  latest.copyWith(bookedSeats: latest.bookedSeats + seats);
-
-              Navigator.pop(context);
-
-              final paid = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ExhibitionPaymentPage(
-                    exhibitionId: latest.id,
-                    title: latest.title,
-                    venue: latest.venue,
-                    dateTime: latest.dateTime,
-                    seats: seats,
-                    pricePerSeat: latest.pricePerSeat,
-                    totalAmount: totalAmount,
-                  ),
+    return showDialog<int>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) {
+          return AlertDialog(
+            title: const Text("Select Seats"),
+            content: Row(
+              children: [
+                const Text("Seats: "),
+                const SizedBox(width: 8),
+                DropdownButton<int>(
+                  value: selected,
+                  items: List.generate(maxSeats, (i) => i + 1)
+                      .map((n) => DropdownMenuItem(
+                            value: n,
+                            child: Text(n.toString()),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setLocal(() => selected = v ?? 1),
                 ),
-              );
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, selected),
+                child: const Text("Continue"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
-              if (!mounted) return;
+  Widget _image(String path) {
+    if (path.startsWith("assets/")) {
+      return Image.asset(
+        path,
+        height: 220,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          height: 220,
+          color: Colors.grey.shade200,
+          child: const Icon(Icons.image_not_supported),
+        ),
+      );
+    }
 
-              if (paid == true) {
-                BookingData.exhibitionBookings.add({
-                  "customerName": "Demo User",
-                  "exhibitionTitle": latest.title,
-                  "seats": seats,
-                  "pricePerSeat": latest.pricePerSeat,
-                  "totalAmount": totalAmount,
-                  "bookedAt": DateTime.now(),
-                });
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Pass confirmed")),
-                );
-
-                Navigator.pop(context, true);
-              } else {
-                final currentBooked =
-                    ExhibitionData.exhibitions[index].bookedSeats;
-                final newBooked =
-                    (currentBooked - seats) < 0 ? 0 : (currentBooked - seats);
-
-                ExhibitionData.exhibitions[index] =
-                    ExhibitionData.exhibitions[index].copyWith(bookedSeats: newBooked);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Payment cancelled")),
-                );
-
-                setState(() {});
-              }
-            },
-            child: const Text("Confirm"),
-          ),
-        ],
+    return Image.file(
+      File(path),
+      height: 220,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        height: 220,
+        color: Colors.grey.shade200,
+        child: const Icon(Icons.image_not_supported),
       ),
     );
   }

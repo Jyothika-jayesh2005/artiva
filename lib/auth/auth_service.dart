@@ -1,13 +1,33 @@
+import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/backend/models.dart';
+
 class AuthService {
-  Future<void> login(String email, String password) async {
-    // Firebase login will go here later
+  AppUser? get currentUser => backend.currentUser;
+
+  Future<AppUser> login(String email, String password) async {
+    return await backend.login(
+      email: email,
+      password: password,
+    );
   }
 
-  Future<void> register(String email, String password) async {
-    // Firebase register will go here later
+  Future<AppUser> register({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    return await backend.register(
+      name: name,
+      email: email,
+      phone: phone,
+      password: password,
+    );
   }
 
   Future<void> logout() async {
-    // Firebase sign out will go here later
+    await backend.logout();
   }
 }
+
+final AuthService authService = AuthService();

@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
-import 'package:artiva/customer/profile/my_orders.dart';
-import 'package:artiva/data/artwork_data.dart';
-import 'package:artiva/data/order_data.dart';
+import 'package:artiva/customer/checkout/payment_success_page.dart';
 
-class PaymentPage extends StatelessWidget {
+import 'package:artiva/data/artwork_data.dart';
+import 'package:artiva/auth/auth_service.dart';
+import 'package:artiva/backend/backend_provider.dart';
+
+class PaymentPage extends StatefulWidget {
   final Map<String, String> artwork;
   final String address;
 
   const PaymentPage({super.key, required this.artwork, required this.address});
+
+  @override
+  State<PaymentPage> createState() => _PaymentPageState();
+}
+
+class _PaymentPageState extends State<PaymentPage> {
+  bool _loading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -21,8 +30,8 @@ class PaymentPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _sectionTitle("Artwork"),
-            _infoRow("Title", artwork["title"] ?? "-"),
-            _infoRow("Price", artwork["price"] ?? "-"),
+            _infoRow("Title", widget.artwork["title"] ?? "-"),
+            _infoRow("Price", widget.artwork["price"] ?? "-"),
             const SizedBox(height: 20),
 
             _sectionTitle("Deliver To"),
@@ -33,7 +42,7 @@ class PaymentPage extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Text(address, style: const TextStyle(fontSize: 14)),
+              child: Text(widget.address, style: const TextStyle(fontSize: 14)),
             ),
             const SizedBox(height: 24),
 
@@ -88,16 +97,16 @@ class PaymentPage extends StatelessWidget {
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: () => _success(context),
+                onPressed: _loading ? null : _success,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE16417),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: const Text(
-                  "Confirm Payment",
-                  style: TextStyle(
+                child: Text(
+                  _loading ? "PLEASE WAIT..." : "Confirm Payment",
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -128,64 +137,69 @@ class PaymentPage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-
-  void _success(BuildContext context) {
-    // ✅ 1. REDUCE STOCK
-    final index = ArtworkData.artworks.indexWhere(
-      (a) => a["title"] == artwork["title"],
-    );
-
-    if (index != -1) {
-      final currentSold =
-          int.tryParse(ArtworkData.artworks[index]["soldQuantity"] ?? "0") ?? 0;
-
-      ArtworkData.artworks[index]["soldQuantity"] = (currentSold + 1)
-          .toString();
-    }
-
-    // ✅ 2. SAVE ORDER (THIS IS WHAT YOU ASKED)
-    OrderData.orders.add({
-      "artTitle": artwork["title"] ?? "Artwork",
-      "price": artwork["price"] ?? "-",
-      "image": artwork["image"] ?? "",
-      "quantity": 1,
-      "customerName": "Demo User",
-      "orderedAt": DateTime.now(),
-    });
-
-    // ✅ 3. SHOW SUCCESS DIALOG
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text("Payment Successful"),
-        content: const Text("Your order has been placed."),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-
-              // ✅ 4. GO TO MY ORDERS SAFELY
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const MyOrdersPage(fromPayment: true),
-                ),
-                (route) => false,
-              );
-            },
-            child: const Text(
-              "View Orders",
-              style: TextStyle(color: Color(0xFFE16417)),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _success() async {
+    final user = authService.currentUser;
+    if (user == null) {
+      _snack("Please login first.");
+      return;
+    }
+
+    final artworkId = (widget.artwork["id"] ?? "").trim();
+    if (artworkId.isEmpty) {
+      _snack("Artwork ID missing. Add an 'id' field to each artwork.");
+      return;
+    }
+
+    final title = widget.artwork["title"] ?? "Artwork";
+    final price = widget.artwork["price"] ?? "-";
+    final imagePath = widget.artwork["image"];
+
+    setState(() => _loading = true);
+
+    try {
+      // local stock update (dummy)
+      ArtworkData.reduceStock(artworkId);
+
+      // create order
+      final String orderId = await backend.createOrder(
+        artworkId: artworkId,
+        artTitle: title,
+        price: price,
+        quantity: 1,
+        address: widget.address,
+        imagePath: imagePath,
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentSuccessPage(orderId: orderId),
+        ),
+      );
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }

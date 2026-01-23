@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:artiva/data/user_data.dart';
+import 'package:artiva/auth/auth_service.dart';
+import 'package:artiva/backend/models.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,10 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _passwordVisible = false;
-
-  // Admin credentials (UI-only)
-  final String adminEmail = 'admin@artiva.com';
-  final String adminPassword = 'admin123';
+  bool _loading = false;
 
   static const Color primary = Color(0xFFE16417);
   static const Color secondary = Color(0xFF80431F);
@@ -32,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        // ✅ FULL GRADIENT BACKGROUND
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -42,7 +39,6 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         child: SafeArea(
           child: Center(
-            // ✅ CENTER CONTENT VERTICALLY
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: ConstrainedBox(
@@ -51,7 +47,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 20),
-
                     const Text(
                       'Artiva',
                       style: TextStyle(
@@ -61,18 +56,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         letterSpacing: 1.2,
                       ),
                     ),
-
                     const SizedBox(height: 40),
-
                     _buildInputField(
                       hint: 'Email',
                       icon: Icons.email,
                       keyboardType: TextInputType.emailAddress,
                       controller: _emailController,
                     ),
-
                     const SizedBox(height: 18),
-
                     _buildInputField(
                       hint: 'Password',
                       icon: Icons.lock,
@@ -85,22 +76,21 @@ class _LoginScreenState extends State<LoginScreen> {
                               : Icons.visibility_off,
                           color: Colors.white70,
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _passwordVisible = !_passwordVisible;
-                          });
-                        },
+                        onPressed: _loading
+                            ? null
+                            : () {
+                                setState(
+                                    () => _passwordVisible = !_passwordVisible);
+                              },
                       ),
                     ),
-
                     const SizedBox(height: 30),
-
-                    // ✅ BUTTON THAT MATCHES THEME
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _handleLogin,
+                        onPressed:
+                            _loading ? null : () async => await _handleLogin(),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           elevation: 0,
@@ -108,9 +98,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(30),
                           ),
                         ),
-                        child: const Text(
-                          "LOGIN",
-                          style: TextStyle(
+                        child: Text(
+                          _loading ? "PLEASE WAIT..." : "LOGIN",
+                          style: const TextStyle(
                             color: primary,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -119,9 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 22),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -130,22 +118,22 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(color: Colors.white70),
                         ),
                         GestureDetector(
-                          onTap: () {
-                            Navigator.pushReplacementNamed(
-                                context, '/register');
-                          },
+                          onTap: _loading
+                              ? null
+                              : () {
+                                  Navigator.pushReplacementNamed(
+                                      context, '/register');
+                                },
                           child: const Text(
                             'Register',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              
                             ),
                           ),
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -157,8 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ================= LOGIN LOGIC =================
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -167,38 +154,30 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // ADMIN LOGIN
-    if (email == adminEmail && password == adminPassword) {
-      Navigator.pushReplacementNamed(context, '/admin');
-      return;
+    setState(() => _loading = true);
+
+    try {
+      final AppUser user = await authService.login(email, password);
+      if (!mounted) return;
+
+      Navigator.pushReplacementNamed(
+        context,
+        user.role == Role.admin ? '/admin' : '/home',
+      );
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-
-    // CUSTOMER LOGIN
-    final user = UserData.users.firstWhere(
-      (u) => (u["email"] ?? "").toString().toLowerCase() == email.toLowerCase(),
-      orElse: () => {},
-    );
-
-    if (user.isEmpty) {
-      _snack('No account found. Please register.');
-      return;
-    }
-
-    if (user["password"] != password) {
-      _snack('Incorrect password');
-      return;
-    }
-
-    Navigator.pushReplacementNamed(context, '/home');
   }
 
   void _snack(String msg) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
     );
   }
 
-  // ================= INPUT FIELD =================
   Widget _buildInputField({
     required String hint,
     required IconData icon,
@@ -218,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
         prefixIcon: Icon(icon, color: Colors.white70),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.black.withOpacity(0.25), // ✅ NO WHITE
+        fillColor: Colors.black.withOpacity(0.25),
         contentPadding:
             const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
         border: OutlineInputBorder(

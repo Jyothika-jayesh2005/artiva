@@ -1,14 +1,23 @@
 import 'dart:ui';
-import 'package:artiva/admin/manage_artworks.dart';
 import 'package:flutter/material.dart';
+
+import 'package:artiva/auth/auth_service.dart';
 import 'package:artiva/widgets/admin_scaffold.dart';
+
 import 'add_artwork.dart';
 import 'exhibition_management.dart';
 import 'booking_overview.dart';
 import 'users_page.dart';
+import 'package:artiva/admin/manage_artworks.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
+
+  Future<void> _logout(BuildContext context) async {
+    await authService.logout();
+    if (!context.mounted) return;
+    Navigator.pushReplacementNamed(context, '/login');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,9 +27,7 @@ class AdminDashboard extends StatelessWidget {
       actions: [
         IconButton(
           icon: const Icon(Icons.logout, color: Colors.white),
-          onPressed: () {
-            Navigator.pushReplacementNamed(context, '/login');
-          },
+          onPressed: () async => await _logout(context),
         ),
       ],
       body: Padding(
@@ -38,7 +45,6 @@ class AdminDashboard extends StatelessWidget {
                 );
               },
             ),
-
             _card(
               icon: Icons.event,
               title: "Exhibitions",
@@ -109,16 +115,14 @@ class AdminDashboard extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               constraints: const BoxConstraints(
-                minHeight: 120, // ✅ INCREASED BREADTH (HEIGHT)
+                minHeight: 120,
               ),
               padding: const EdgeInsets.symmetric(
                 horizontal: 20,
-                vertical: 26, // ✅ MORE VERTICAL SPACE
+                vertical: 26,
               ),
               decoration: BoxDecoration(
-                color: const Color(
-                  0xFF7B2CBF,
-                ).withOpacity(0.22), // darker violet
+                color: const Color(0xFF7B2CBF).withOpacity(0.22),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.25),
@@ -135,21 +139,15 @@ class AdminDashboard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // ICON
                   Container(
-                    padding: const EdgeInsets.all(
-                      16,
-                    ), // slightly bigger icon box
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.85),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Icon(icon, size: 32, color: const Color(0xFF7B2CBF)),
                   ),
-
                   const SizedBox(width: 20),
-
-                  // TEXT
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,7 +156,7 @@ class AdminDashboard extends StatelessWidget {
                         Text(
                           title,
                           style: const TextStyle(
-                            fontSize: 18, // slightly larger
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -173,7 +171,6 @@ class AdminDashboard extends StatelessWidget {
                       ],
                     ),
                   ),
-
                   const Icon(
                     Icons.arrow_forward_ios,
                     size: 18,

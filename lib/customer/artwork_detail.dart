@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import '../widgets/customer_scaffold.dart';
 import 'package:artiva/data/artwork_data.dart';
 
+import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/backend/models.dart';
+
 class ArtworkDetailsPage extends StatefulWidget {
   final Map<String, dynamic> artwork;
 
@@ -23,7 +26,6 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
     final imagePath =
         (widget.artwork["image"] ?? "assets/placeholder.png").toString();
     final category = (widget.artwork["category"] ?? "-").toString();
-    final rating = (widget.artwork["rating"] ?? "—").toString();
     final description = (widget.artwork["description"] ?? "").toString();
 
     final int totalQty =
@@ -76,8 +78,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                                 ArtworkData.toggleFavourite(id);
                               });
 
-                              final nowWishlisted =
-                                  ArtworkData.isFavourite(id);
+                              final nowWishlisted = ArtworkData.isFavourite(id);
 
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -122,7 +123,21 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                               color: Color(0xFFE16417),
                             ),
                           ),
-                          _badge(Icons.star, rating, Colors.orange),
+
+                          // ✅ REAL rating from backend
+                          FutureBuilder<ArtworkRatingSummary>(
+                            future: backend.getArtworkRating(id),
+                            builder: (context, snap) {
+                              if (!snap.hasData) {
+                                return _badge(Icons.star, "—", Colors.orange);
+                              }
+                              final r = snap.data!;
+                              final text = r.count == 0
+                                  ? "—"
+                                  : "${r.label} (${r.count})";
+                              return _badge(Icons.star, text, Colors.orange);
+                            },
+                          ),
                         ],
                       ),
 
@@ -137,12 +152,9 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                       Row(
                         children: [
                           Icon(
-                            remainingQty > 0
-                                ? Icons.check_circle
-                                : Icons.cancel,
+                            remainingQty > 0 ? Icons.check_circle : Icons.cancel,
                             size: 16,
-                            color:
-                                remainingQty > 0 ? Colors.green : Colors.red,
+                            color: remainingQty > 0 ? Colors.green : Colors.red,
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -245,8 +257,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("Price",
-                          style: TextStyle(color: Colors.grey)),
+                      const Text("Price", style: TextStyle(color: Colors.grey)),
                       Text(
                         price,
                         style: const TextStyle(

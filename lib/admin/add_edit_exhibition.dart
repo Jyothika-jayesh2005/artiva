@@ -1,13 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../models/exhibition_model.dart';
-import '../data/exhibition_data.dart';
+
 import 'package:artiva/widgets/admin_scaffold.dart';
+import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/backend/models.dart';
 
 class AddEditExhibitionPage extends StatefulWidget {
-  final int? editIndex; // null = add, not null = edit
-  const AddEditExhibitionPage({super.key, this.editIndex});
+  final Exhibition? existing; // null = add, not null = edit
+  const AddEditExhibitionPage({super.key, this.existing});
 
   @override
   State<AddEditExhibitionPage> createState() => _AddEditExhibitionPageState();
@@ -24,25 +25,23 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
   final _priceCtrl = TextEditingController();
 
   DateTime? _selectedDateTime;
+  String? _imagePath;
 
-  // ✅ NEW
-  String? _imagePath; // assets/... OR file path
-
-  bool get isEdit => widget.editIndex != null;
+  bool get isEdit => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
 
-    if (isEdit) {
-      final ex = ExhibitionData.exhibitions[widget.editIndex!];
+    final ex = widget.existing;
+    if (ex != null) {
       _titleCtrl.text = ex.title;
       _venueCtrl.text = ex.venue;
       _descCtrl.text = ex.description;
       _totalSeatsCtrl.text = ex.totalSeats.toString();
       _priceCtrl.text = ex.pricePerSeat.toString();
       _selectedDateTime = ex.dateTime;
-      _imagePath = ex.imagePath; // ✅
+      _imagePath = ex.imagePath;
     } else {
       _selectedDateTime = DateTime.now().add(const Duration(days: 1));
       _priceCtrl.text = "100";
@@ -62,9 +61,7 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
 
   Future<void> _pickImage() async {
     final picked = await _picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      setState(() => _imagePath = picked.path);
-    }
+    if (picked != null) setState(() => _imagePath = picked.path);
   }
 
   @override
@@ -87,7 +84,6 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
           key: _formKey,
           child: ListView(
             children: [
-              // ✅ IMAGE PICKER (same as artwork)
               GestureDetector(
                 onTap: _pickImage,
                 child: Container(
@@ -108,7 +104,6 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                         ),
                 ),
               ),
-
               const SizedBox(height: 14),
 
               _field(
@@ -151,7 +146,6 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                   return null;
                 },
               ),
-
               const SizedBox(height: 12),
 
               _field(
@@ -165,7 +159,6 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                   return null;
                 },
               ),
-
               const SizedBox(height: 16),
 
               ListTile(
@@ -243,11 +236,10 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDateTime == null) return;
 
-    // ✅ block save if no image
     if (_imagePath == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please upload an exhibition image")),
@@ -258,50 +250,40 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
     final totalSeats = int.parse(_totalSeatsCtrl.text.trim());
     final pricePerSeat = int.parse(_priceCtrl.text.trim());
 
-    if (isEdit) {
-      final old = ExhibitionData.exhibitions[widget.editIndex!];
+    final old = widget.existing;
+    final bookedSeats = old?.bookedSeats ?? 0;
 
-      if (totalSeats < old.bookedSeats) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Total seats cannot be less than booked (${old.bookedSeats})",
-            ),
-          ),
-        );
-        return;
-      }
-
-      ExhibitionData.exhibitions[widget.editIndex!] = Exhibition(
-        id: old.id,
-        title: _titleCtrl.text.trim(),
-        venue: _venueCtrl.text.trim(),
-        dateTime: _selectedDateTime!,
-        description: _descCtrl.text.trim(),
-        totalSeats: totalSeats,
-        bookedSeats: old.bookedSeats,
-        pricePerSeat: pricePerSeat,
-        imagePath: _imagePath!, // ✅
-        isArchived: old.isArchived,
-      );
-    } else {
-      ExhibitionData.exhibitions.add(
-        Exhibition(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          title: _titleCtrl.text.trim(),
-          venue: _venueCtrl.text.trim(),
-          dateTime: _selectedDateTime!,
-          description: _descCtrl.text.trim(),
-          totalSeats: totalSeats,
-          bookedSeats: 0,
-          pricePerSeat: pricePerSeat,
-          imagePath: _imagePath!, // ✅
-          isArchived: false,
+    if (totalSeats < bookedSeats) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Total seats cannot be less than booked ($bookedSeats)"),
         ),
       );
+      return;
     }
 
-    Navigator.pop(context, true);
+    final ex = Exhibition(
+      id: old?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      title: _titleCtrl.text.trim(),
+      venue: _venueCtrl.text.trim(),
+      dateTime: _selectedDateTime!,
+      description: _descCtrl.text.trim(),
+      totalSeats: totalSeats,
+      bookedSeats: bookedSeats,
+      pricePerSeat: pricePerSeat,
+      imagePath: _imagePath!,
+      isArchived: old?.isArchived ?? false,
+    );
+
+    try {
+      await backend.upsertExhibition(ex);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   String _formatDateTime(DateTime dt) {
