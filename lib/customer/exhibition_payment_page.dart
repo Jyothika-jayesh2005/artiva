@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
 
-import 'package:artiva/backend/backend_provider.dart';
-import 'package:artiva/backend/models.dart';
 import 'package:artiva/auth/auth_service.dart';
+import 'package:artiva/backend/backend_provider.dart'; // ✅ ADD THIS
+import 'package:artiva/backend/models.dart';
 
 class ExhibitionPaymentPage extends StatefulWidget {
   final Exhibition exhibition;
@@ -146,6 +146,8 @@ class _ExhibitionPaymentPageState extends State<ExhibitionPaymentPage> {
       final bookingId = await backend.bookExhibition(
         exhibitionId: widget.exhibition.id,
         seats: widget.seats,
+        customerName: user.name,
+        customerEmail: user.email,
       );
 
       if (!mounted) return;
@@ -154,9 +156,7 @@ class _ExhibitionPaymentPageState extends State<ExhibitionPaymentPage> {
         context: context,
         builder: (_) => AlertDialog(
           title: const Text("Booking Confirmed"),
-          content: Text(
-            "Your seats are booked.\n\nBooking ID: $bookingId",
-          ),
+          content: Text("Your seats are booked.\n\nBooking ID: $bookingId"),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -168,7 +168,6 @@ class _ExhibitionPaymentPageState extends State<ExhibitionPaymentPage> {
 
       if (!mounted) return;
 
-      // Go back to Exhibition list (2 pops: payment -> detail -> list)
       Navigator.pop(context); // back to detail
       Navigator.pop(context); // back to list
     } catch (e) {

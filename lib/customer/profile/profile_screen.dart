@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
-
 import 'package:artiva/auth/auth_service.dart';
 
 import 'profile_settings.dart';
@@ -41,15 +40,13 @@ class ProfileScreen extends StatelessWidget {
 
     if (confirm != true) return;
 
-    // ✅ REAL logout (FakeBackend now, Firebase later)
     await authService.logout();
-
     if (!context.mounted) return;
 
-    // ✅ Reset navigation stack
+    // ✅ Always return to welcome (clean stack)
     Navigator.pushNamedAndRemoveUntil(
       context,
-      '/login',
+      '/',
       (route) => false,
     );
   }
@@ -58,7 +55,6 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = authService.currentUser;
 
-    // If user somehow opens profile without login
     final name = user?.name ?? "Guest";
     final email = user?.email ?? "-";
 
@@ -70,31 +66,20 @@ class ProfileScreen extends StatelessWidget {
         children: [
           const SizedBox(height: 10),
 
-          // Avatar + name
           Center(
             child: Column(
               children: [
                 const CircleAvatar(
                   radius: 42,
                   backgroundColor: Colors.white,
-                  child: Icon(
-                    Icons.person,
-                    size: 42,
-                    color: primary,
-                  ),
+                  child: Icon(Icons.person, size: 42, color: primary),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                Text(
-                  email,
-                  style: const TextStyle(color: Colors.grey),
-                ),
+                Text(email, style: const TextStyle(color: Colors.grey)),
               ],
             ),
           ),
@@ -146,7 +131,6 @@ class ProfileScreen extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // Logout
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -156,10 +140,7 @@ class ProfileScreen extends StatelessWidget {
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text(
                 "Logout",
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
               ),
               onTap: () => _logout(context),
             ),
@@ -193,20 +174,10 @@ class ProfileScreen extends StatelessWidget {
           backgroundColor: primary.withOpacity(0.12),
           child: Icon(icon, color: primary),
         ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-          color: Colors.grey,
-        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => page),
-          );
+          Navigator.push(context, MaterialPageRoute(builder: (_) => page));
         },
       ),
     );

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import 'package:artiva/auth/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -66,36 +65,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         letterSpacing: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Create Account',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
 
                     _buildInputField(
                       hint: 'Full Name',
                       icon: Icons.person,
                       controller: _nameController,
-                      keyboardType: TextInputType.name,
-                      textCapitalization: TextCapitalization.words,
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
 
                     _buildInputField(
                       hint: 'Email',
                       icon: Icons.email,
-                      controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
+                      controller: _emailController,
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
 
                     _buildInputField(
-                      hint: 'Phone Number',
+                      hint: 'Phone (10 digits)',
                       icon: Icons.phone,
-                      controller: _phoneController,
                       keyboardType: TextInputType.phone,
+                      controller: _phoneController,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(10),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
 
                     _buildInputField(
                       hint: 'Password',
@@ -111,13 +116,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         onPressed: _loading
                             ? null
-                            : () {
-                                setState(
-                                    () => _passwordVisible = !_passwordVisible);
-                              },
+                            : () => setState(
+                                () => _passwordVisible = !_passwordVisible),
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
 
                     _buildInputField(
                       hint: 'Confirm Password',
@@ -133,21 +136,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         onPressed: _loading
                             ? null
-                            : () {
-                                setState(() => _confirmPasswordVisible =
-                                    !_confirmPasswordVisible);
-                              },
+                            : () => setState(() =>
+                                _confirmPasswordVisible =
+                                    !_confirmPasswordVisible),
                       ),
                     ),
 
-                    const SizedBox(height: 30),
-
+                    const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed:
-                            _loading ? null : () async => await _handleRegister(),
+                        onPressed: _loading
+                            ? null
+                            : () async => await _handleRegister(),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           elevation: 0,
@@ -156,7 +158,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                         child: Text(
-                          _loading ? "PLEASE WAIT..." : "CREATE ACCOUNT",
+                          _loading ? "PLEASE WAIT..." : "REGISTER",
                           style: const TextStyle(
                             color: primary,
                             fontWeight: FontWeight.bold,
@@ -167,13 +169,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 22),
-
+                    const SizedBox(height: 18),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text(
-                          'Already have an account? ',
+                          "Already have an account? ",
                           style: TextStyle(color: Colors.white70),
                         ),
                         GestureDetector(
@@ -186,13 +187,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              decoration: TextDecoration.underline,
                             ),
                           ),
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -280,14 +279,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     bool obscureText = false,
     Widget? suffixIcon,
     List<TextInputFormatter>? inputFormatters,
-    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
       inputFormatters: inputFormatters,
-      textCapitalization: textCapitalization,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,

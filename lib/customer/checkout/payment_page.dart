@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/customer/checkout/payment_success_page.dart';
 
-import 'package:artiva/data/artwork_data.dart';
 import 'package:artiva/auth/auth_service.dart';
-import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/backend/backend_service.dart';
 
 class PaymentPage extends StatefulWidget {
-  final Map<String, String> artwork;
+  final Map<String, dynamic> artwork; // ✅ correct type
   final String address;
 
-  const PaymentPage({super.key, required this.artwork, required this.address});
+  const PaymentPage({
+    super.key,
+    required this.artwork,
+    required this.address,
+  });
 
   @override
   State<PaymentPage> createState() => _PaymentPageState();
@@ -19,8 +22,14 @@ class PaymentPage extends StatefulWidget {
 class _PaymentPageState extends State<PaymentPage> {
   bool _loading = false;
 
+  // ✅ backend instance
+  final BackendService backend = BackendService();
+
   @override
   Widget build(BuildContext context) {
+    final title = (widget.artwork["title"] ?? "-").toString();
+    final priceText = (widget.artwork["price"] ?? "-").toString();
+
     return CustomerScaffold(
       currentIndex: -1,
       title: "Payment",
@@ -30,8 +39,8 @@ class _PaymentPageState extends State<PaymentPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _sectionTitle("Artwork"),
-            _infoRow("Title", widget.artwork["title"] ?? "-"),
-            _infoRow("Price", widget.artwork["price"] ?? "-"),
+            _infoRow("Title", title),
+            _infoRow("Price", priceText),
             const SizedBox(height: 20),
 
             _sectionTitle("Deliver To"),
@@ -42,7 +51,10 @@ class _PaymentPageState extends State<PaymentPage> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Text(widget.address, style: const TextStyle(fontSize: 14)),
+              child: Text(
+                widget.address,
+                style: const TextStyle(fontSize: 14),
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -157,30 +169,48 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
 
-    final artworkId = (widget.artwork["id"] ?? "").trim();
+    final artworkId = (widget.artwork["id"] ?? "").toString().trim();
     if (artworkId.isEmpty) {
       _snack("Artwork ID missing. Add an 'id' field to each artwork.");
       return;
     }
 
-    final title = widget.artwork["title"] ?? "Artwork";
-    final price = widget.artwork["price"] ?? "-";
-    final imagePath = widget.artwork["image"];
+    final title = (widget.artwork["title"] ?? "Artwork").toString();
+    final priceStr = (widget.artwork["price"] ?? "0").toString();
+
+    // ✅ Support both "imagePath" and old "image"
+    final imagePath = widget.artwork["imagePath"]?.toString() ??
+        widget.artwork["image"]?.toString();
+
+    // ✅ Convert price safely to int
+    final int price =
+        int.tryParse(priceStr.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+    if (price <= 0) {
+      _snack("Invalid artwork price.");
+      return;
+    }
 
     setState(() => _loading = true);
 
     try {
-      // local stock update (dummy)
-      ArtworkData.reduceStock(artworkId);
+      // ❌ IMPORTANT:
+      // If you moved to Firestore, DON'T do local reduceStock.
+      // It doesn't update Firestore, so your stock will be wrong.
+      // If you still use ArtworkData locally, uncomment and import it.
+      //
+      // ArtworkData.reduceStock(artworkId);
 
-      // create order
       final String orderId = await backend.createOrder(
+        userId: user.uid, // ✅ REQUIRED by your backend_service.dart
         artworkId: artworkId,
         artTitle: title,
         price: price,
         quantity: 1,
         address: widget.address,
         imagePath: imagePath,
+        customerName: user.name,
+        customerEmail: user.email,
       );
 
       if (!mounted) return;
@@ -200,6 +230,8 @@ class _PaymentPageState extends State<PaymentPage> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
   }
 }

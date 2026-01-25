@@ -1,91 +1,24 @@
+// ---------------- USER ----------------
+
+enum Role { admin, user }
+
 class AppUser {
-  final String id;
+  final String uid;
   final String name;
   final String email;
   final String phone;
   final Role role;
 
   AppUser({
-    required this.id,
+    required this.uid,
     required this.name,
     required this.email,
     required this.phone,
     required this.role,
   });
-
-  AppUser copyWith({
-    String? name,
-    String? phone,
-  }) {
-    return AppUser(
-      id: id,
-      name: name ?? this.name,
-      email: email,
-      phone: phone ?? this.phone,
-      role: role,
-    );
-  }
 }
 
-enum Role { admin, customer }
-
-// ----------------- ARTWORK ORDERS + REVIEWS -----------------
-
-enum OrderStatus { processing, shipped, delivered }
-
-class ArtworkOrder {
-  final String id;
-  final String artworkId;
-  final String artTitle;
-
-  final String customerName;
-  final String customerEmail;
-
-  final int quantity;
-  final String price;
-  final String address;
-
-  final String? imagePath;
-  final DateTime orderedAt;
-
-  OrderStatus status;
-
-  int? rating;
-  String? review;
-  DateTime? ratedAt;
-
-  ArtworkOrder({
-    required this.id,
-    required this.artworkId,
-    required this.artTitle,
-    required this.customerName,
-    required this.customerEmail,
-    required this.quantity,
-    required this.price,
-    required this.address,
-    required this.orderedAt,
-    required this.status,
-    this.imagePath,
-    this.rating,
-    this.review,
-    this.ratedAt,
-  });
-}
-
-class ArtworkRatingSummary {
-  final double avgRating;
-  final int ratingCount;
-
-  const ArtworkRatingSummary({
-    required this.avgRating,
-    required this.ratingCount,
-  });
-
-  String get label => avgRating == 0 ? "0.0" : avgRating.toStringAsFixed(1);
-  int get count => ratingCount;
-}
-
-// ----------------- EXHIBITIONS -----------------
+// ---------------- EXHIBITION ----------------
 
 class Exhibition {
   final String id;
@@ -93,13 +26,11 @@ class Exhibition {
   final String venue;
   final DateTime dateTime;
   final String description;
-
-  int totalSeats;
-  int bookedSeats;
-  int pricePerSeat;
-
-  String imagePath;
-  bool isArchived;
+  final int totalSeats;
+  final int bookedSeats;
+  final int pricePerSeat;
+  final String imagePath;
+  final bool isArchived;
 
   Exhibition({
     required this.id,
@@ -114,23 +45,21 @@ class Exhibition {
     required this.isArchived,
   });
 
-  int get remainingSeats => (totalSeats - bookedSeats).clamp(0, totalSeats);
+  int get remainingSeats => totalSeats - bookedSeats;
 }
+
+// ---------------- EXHIBITION BOOKING ----------------
 
 class ExhibitionBooking {
   final String id;
-
   final String exhibitionId;
   final String exhibitionTitle;
   final String venue;
-
+  final String customerName;
+  final String customerEmail;
   final int seats;
   final int pricePerSeat;
   final int totalAmount;
-
-  final String customerName;
-  final String customerEmail;
-
   final DateTime bookedAt;
 
   ExhibitionBooking({
@@ -138,11 +67,77 @@ class ExhibitionBooking {
     required this.exhibitionId,
     required this.exhibitionTitle,
     required this.venue,
+    required this.customerName,
+    required this.customerEmail,
     required this.seats,
     required this.pricePerSeat,
     required this.totalAmount,
-    required this.customerName,
-    required this.customerEmail,
     required this.bookedAt,
   });
+}
+
+// ---------------- ARTWORK ORDER ----------------
+
+enum OrderStatus { pending, shipped, delivered, cancelled }
+
+class ArtworkOrder {
+  final String id;
+
+  // required for relating order -> artwork
+  final String? artId;
+
+  final String artTitle;
+  final String customerName;
+  final String customerEmail;
+
+  final int quantity;
+  final int price;
+
+  // ✅ NEW fields you are trying to use
+  final String? address;
+  final String? imagePath;
+  final String? size; // size in cm (example)
+  final String? inch; // size in inch (example)
+
+  final OrderStatus status;
+  final DateTime orderedAt;
+
+  final int? rating;
+  final String? review;
+  final DateTime? ratedAt;
+
+  ArtworkOrder({
+    required this.id,
+    this.artId,
+    required this.artTitle,
+    required this.customerName,
+    required this.customerEmail,
+    required this.quantity,
+    required this.price,
+
+    this.address,
+    this.imagePath,
+    this.size,
+    this.inch,
+
+    required this.status,
+    required this.orderedAt,
+    this.rating,
+    this.review,
+    this.ratedAt,
+  });
+}
+
+// ---------------- ARTWORK RATING SUMMARY ----------------
+
+class ArtworkRatingSummary {
+  final double avg;
+  final int count;
+
+  const ArtworkRatingSummary({
+    required this.avg,
+    required this.count,
+  });
+
+  String get label => avg == 0 ? "—" : avg.toStringAsFixed(1);
 }

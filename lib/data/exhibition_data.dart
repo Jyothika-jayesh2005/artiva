@@ -1,4 +1,6 @@
-import '../models/exhibition_model.dart';
+// lib/data/exhibition_data.dart
+
+import 'package:artiva/backend/models.dart';
 
 class ExhibitionData {
   static final List<Exhibition> exhibitions = [
@@ -11,7 +13,7 @@ class ExhibitionData {
       totalSeats: 120,
       bookedSeats: 35,
       pricePerSeat: 250,
-      imagePath: "assets/exbhi1.jpg", // ✅
+      imagePath: "assets/exbhi1.jpg",
       isArchived: false,
     ),
     Exhibition(
@@ -23,7 +25,7 @@ class ExhibitionData {
       totalSeats: 80,
       bookedSeats: 80,
       pricePerSeat: 150,
-      imagePath: "assets/exbhi2.jpg", // ✅
+      imagePath: "assets/exbhi2.jpg",
       isArchived: false,
     ),
     Exhibition(
@@ -35,7 +37,7 @@ class ExhibitionData {
       totalSeats: 60,
       bookedSeats: 20,
       pricePerSeat: 200,
-      imagePath: "assets/exbhi3.jpg", // ✅
+      imagePath: "assets/exbhi3.jpg",
       isArchived: false,
     ),
   ];

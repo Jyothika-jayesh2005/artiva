@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/widgets/artwork_card.dart';
 import 'package:artiva/customer/artwork_detail.dart';
-import 'package:artiva/data/artwork_data.dart';
+import 'package:artiva/backend/backend_provider.dart'; // global backend
 
 class ArtworkListPage extends StatefulWidget {
   final String initialQuery;
-  final String initialCategory; // "All" or specific
+  final String initialCategory;
 
   const ArtworkListPage({
     super.key,
@@ -35,12 +35,10 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
     super.dispose();
   }
 
-  List<Map<String, dynamic>> get _filtered {
+  List<Map<String, dynamic>> _applyFilter(List<Map<String, dynamic>> list) {
     final q = _searchCtrl.text.trim().toLowerCase();
 
-    return ArtworkData.artworks.where((raw) {
-      final art = Map<String, dynamic>.from(raw);
-
+    return list.where((art) {
       final title = (art["title"] ?? "").toString().toLowerCase();
       final cat = (art["category"] ?? "").toString();
 
@@ -50,19 +48,31 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
       final searchOk = q.isEmpty ? true : title.contains(q);
 
       return categoryOk && searchOk;
-    }).map((e) => Map<String, dynamic>.from(e)).toList();
+    }).toList();
+  }
+
+  // ✅ Normalize Firestore artwork map so UI always gets the image in a common key
+  Map<String, dynamic> _normalizeArtwork(Map<String, dynamic> art) {
+    final image = (art["imageUrl"] ?? art["imagePath"] ?? art["image"] ?? "")
+        .toString()
+        .trim();
+
+    return {
+      ...art,
+      // Many widgets use "image" key. Force it.
+      "image": image,
+      "imagePath": image, // keep both for safety
+      "imageUrl": image,  // keep both for safety
+    };
   }
 
   @override
   Widget build(BuildContext context) {
-    final list = _filtered;
-
     return CustomerScaffold(
       title: "Artworks",
       currentIndex: 1,
       body: Column(
         children: [
-          // Top filter bar
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
@@ -120,43 +130,57 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
           ),
 
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: list.isEmpty
-                  ? const Center(child: Text("No artworks found"))
-                  : GridView.builder(
-                      itemCount: list.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        // IMPORTANT: tune for your ArtworkCard (prevents overflow)
-                        childAspectRatio: 0.62,
-                      ),
-                      itemBuilder: (context, index) {
-                        final art = list[index];
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: backend.watchArtworks(),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snap.hasError) {
+                  return Center(child: Text("Error: ${snap.error}"));
+                }
 
-                        return ArtworkCard(
-                          artwork: art,
-                          onTap: () {
-                            // If your ArtworkDetailsPage expects Map<String,String>,
-                            // convert safely:
-                            final detailArt = art.map(
-                              (k, v) => MapEntry(k, (v ?? "").toString()),
-                            );
+                final all = (snap.data ?? []).map(_normalizeArtwork).toList();
+                final filtered = _applyFilter(all);
 
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ArtworkDetailsPage(artwork: detailArt),
-                              ),
-                            );
-                          },
-                        );
-                      },
+                if (filtered.isEmpty) {
+                  return const Center(child: Text("No artworks found"));
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: GridView.builder(
+                    itemCount: filtered.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: 0.62,
                     ),
+                    itemBuilder: (context, index) {
+                      final art = filtered[index];
+
+                      return ArtworkCard(
+                        artwork: art, // ✅ now has image/imagePath/imageUrl
+                        onTap: () {
+                          final detailArt = art.map(
+                            (k, v) => MapEntry(k, (v ?? "").toString()),
+                          );
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  ArtworkDetailsPage(artwork: detailArt),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                );
+              },
             ),
           ),
         ],

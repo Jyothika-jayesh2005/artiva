@@ -1,9 +1,8 @@
-import 'dart:io'; // ✅ REQUIRED for File()
-
+import 'dart:io'; // ✅ for File()
 import 'package:flutter/material.dart';
-import 'package:artiva/widgets/customer_scaffold.dart';
 
-import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/widgets/customer_scaffold.dart';
+import 'package:artiva/backend/backend_service.dart'; // ✅ use service directly
 import 'package:artiva/backend/models.dart';
 
 import 'exhibition_detail_page.dart';
@@ -16,8 +15,10 @@ class ExhibitionScreen extends StatefulWidget {
 }
 
 class _ExhibitionScreenState extends State<ExhibitionScreen> {
+  final BackendService backend = BackendService(); // ✅ define backend
+
   Future<List<Exhibition>> _load() async {
-    return backend.getExhibitions(); // active only
+    return backend.getExhibitions(); // active only (default includeArchived=false)
   }
 
   @override

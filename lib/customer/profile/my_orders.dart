@@ -4,7 +4,7 @@ import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/customer/home_screen.dart';
 
 import 'package:artiva/auth/auth_service.dart';
-import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/backend/backend_service.dart'; // ✅ FIXED
 import 'package:artiva/backend/models.dart';
 
 class MyOrdersPage extends StatefulWidget {
@@ -18,6 +18,9 @@ class MyOrdersPage extends StatefulWidget {
 
 class _MyOrdersPageState extends State<MyOrdersPage> {
   bool _busy = false;
+
+  // ✅ DEFINE BACKEND
+  final BackendService backend = BackendService();
 
   void _goHome(BuildContext context) {
     Navigator.pushAndRemoveUntil(
@@ -61,7 +64,7 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
               );
             }
 
-            final orders = (snap.data ?? []).reversed.toList(); // latest first
+            final orders = (snap.data ?? []).reversed.toList();
 
             if (orders.isEmpty) {
               return const Center(child: Text("No orders yet"));
@@ -85,7 +88,8 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
   }
 
   Widget _orderCard(ArtworkOrder order) {
-    final canRate = order.status == OrderStatus.delivered && order.rating == null;
+    final canRate =
+        order.status == OrderStatus.delivered && order.rating == null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -101,14 +105,14 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
         children: [
           Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  width: 70,
-                  height: 90,
+              Container(
+                width: 70,
+                height: 90,
+                decoration: BoxDecoration(
                   color: Colors.grey.shade200,
-                  child: const Icon(Icons.image, color: Colors.black38),
+                  borderRadius: BorderRadius.circular(10),
                 ),
+                child: const Icon(Icons.image, color: Colors.black38),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -124,7 +128,7 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      order.price,
+                      "₹${order.price}",
                       style: const TextStyle(
                         color: Color(0xFFE16417),
                         fontWeight: FontWeight.w600,
@@ -133,7 +137,10 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                     const SizedBox(height: 6),
                     Text(
                       "Ordered on ${_formatDate(order.orderedAt)}",
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     _statusChip(order.status),
@@ -143,11 +150,10 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
             ],
           ),
 
-          // ⭐ Rating display (if already rated)
-          if (order.rating != null || (order.review ?? "").trim().isNotEmpty) ...[
+          if (order.rating != null ||
+              (order.review ?? "").trim().isNotEmpty) ...[
             const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
+            const Divider(),
             Row(
               children: [
                 _starsRow(order.rating ?? 0),
@@ -160,33 +166,31 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                 if (order.ratedAt != null)
                   Text(
                     _formatDate(order.ratedAt!),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
                   ),
               ],
             ),
-            if ((order.review ?? "").trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
+            if ((order.review ?? "").trim().isNotEmpty)
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   "\"${order.review!.trim()}\"",
-                  style: const TextStyle(
-                    fontStyle: FontStyle.italic,
-                    color: Colors.black87,
-                  ),
+                  style: const TextStyle(fontStyle: FontStyle.italic),
                 ),
               ),
-            ],
           ],
 
-          // ✅ Rate button (only after delivered, only once)
           if (canRate) ...[
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               height: 44,
               child: ElevatedButton(
-                onPressed: _busy ? null : () async => await _openRatingDialog(order),
+                onPressed:
+                    _busy ? null : () async => _openRatingDialog(order),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE16417),
                   shape: RoundedRectangleBorder(
@@ -205,76 +209,54 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     );
   }
 
+  // ---------------- RATING ----------------
+
   Future<void> _openRatingDialog(ArtworkOrder order) async {
     int selected = 5;
     final reviewCtrl = TextEditingController();
 
-    final result = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setLocal) {
-          return AlertDialog(
-            title: const Text("Rate your order"),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 4,
-                    children: List.generate(5, (i) {
-                      final star = i + 1;
-                      final filled = star <= selected;
-
-                      return InkResponse(
-                        onTap: () => setLocal(() => selected = star),
-                        radius: 22,
-                        child: Padding(
-                          padding: const EdgeInsets.all(2),
-                          child: Icon(
-                            filled ? Icons.star : Icons.star_border,
-                            size: 28,
-                            color: filled ? Colors.orange : Colors.grey,
-                          ),
-                        ),
-                      );
-                    }),
+      builder: (_) => AlertDialog(
+        title: const Text("Rate your order"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Wrap(
+              spacing: 4,
+              children: List.generate(5, (i) {
+                final star = i + 1;
+                return IconButton(
+                  onPressed: () => selected = star,
+                  icon: Icon(
+                    star <= selected ? Icons.star : Icons.star_border,
+                    color: Colors.orange,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "$selected/5",
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: reviewCtrl,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: "Write a review (optional)",
-                    ),
-                  ),
-                ],
-              ),
+                );
+              }),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text("Submit"),
-              ),
-            ],
-          );
-        },
+            TextField(
+              controller: reviewCtrl,
+              maxLines: 3,
+              decoration:
+                  const InputDecoration(hintText: "Write a review (optional)"),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Submit"),
+          ),
+        ],
       ),
     );
 
-    if (result != true) {
-      reviewCtrl.dispose();
-      return;
-    }
+    if (ok != true) return;
 
     setState(() => _busy = true);
 
@@ -282,12 +264,12 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
       await backend.submitOrderRating(
         orderId: order.id,
         rating: selected,
-        review: reviewCtrl.text.trim().isEmpty ? null : reviewCtrl.text.trim(),
+        review: reviewCtrl.text.trim().isEmpty
+            ? null
+            : reviewCtrl.text.trim(),
       );
-
-      if (!mounted) return;
+      if (mounted) setState(() {});
       _snack("Thanks! Rating submitted.");
-      setState(() {}); // refresh orders
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -296,23 +278,23 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     }
   }
 
+  // ---------------- HELPERS ----------------
+
   Widget _starsRow(int rating) {
     rating = rating.clamp(0, 5);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (i) {
-        final filled = i < rating;
         return Icon(
-          filled ? Icons.star : Icons.star_border,
+          i < rating ? Icons.star : Icons.star_border,
           size: 18,
-          color: filled ? Colors.orange : Colors.grey,
+          color: Colors.orange,
         );
       }),
     );
   }
 
   Widget _statusChip(OrderStatus status) {
-    final label = status.name; // processing/shipped/delivered
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -320,7 +302,7 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
         color: Colors.black.withOpacity(0.05),
       ),
       child: Text(
-        "Status: $label",
+        "Status: ${status.name}",
         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
@@ -328,21 +310,15 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
   }
 
   String _formatDate(DateTime dt) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)} ${_month(dt.month)} ${dt.year}";
-  }
-
-  String _month(int m) {
     const months = [
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+      "Jan","Feb","Mar","Apr","May","Jun",
+      "Jul","Aug","Sep","Oct","Nov","Dec"
     ];
-    return months[m - 1];
+    return "${dt.day} ${months[dt.month - 1]} ${dt.year}";
   }
 }

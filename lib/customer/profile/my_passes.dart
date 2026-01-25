@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
 
 import 'package:artiva/auth/auth_service.dart';
-import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/backend/backend_service.dart'; // ✅ REQUIRED
 import 'package:artiva/backend/models.dart';
 
 import 'pass_detail_page.dart';
@@ -15,6 +15,9 @@ class MyPassesPage extends StatefulWidget {
 }
 
 class _MyPassesPageState extends State<MyPassesPage> {
+  // ✅ DEFINE BACKEND
+  final BackendService backend = BackendService();
+
   Future<List<ExhibitionBooking>> _load() async {
     final user = authService.currentUser;
     if (user == null) throw Exception("Please login first.");
@@ -62,7 +65,7 @@ class _MyPassesPageState extends State<MyPassesPage> {
                         builder: (_) => PassDetailPage(pass: pass),
                       ),
                     );
-                    if (mounted) setState(() {}); // ✅ refresh after coming back
+                    if (mounted) setState(() {});
                   },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 14),
@@ -84,7 +87,8 @@ class _MyPassesPageState extends State<MyPassesPage> {
                           width: 56,
                           height: 56,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE16417).withOpacity(0.12),
+                            color:
+                                const Color(0xFFE16417).withOpacity(0.12),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(

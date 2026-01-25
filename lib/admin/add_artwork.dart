@@ -1,14 +1,18 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:firebase_storage/firebase_storage.dart';
+
 import 'package:artiva/widgets/admin_scaffold.dart';
-import 'package:artiva/data/artwork_data.dart';
+import 'package:artiva/backend/backend_provider.dart'; // global backend
 
 class AddArtworkPage extends StatefulWidget {
-  final int? editIndex; // null = add, not null = edit
-  const AddArtworkPage({super.key, this.editIndex});
+  /// null => add mode
+  /// not null => edit mode (Firestore artwork map)
+  final Map<String, dynamic>? editArtwork;
+
+  const AddArtworkPage({super.key, this.editArtwork});
 
   @override
   State<AddArtworkPage> createState() => _AddArtworkPageState();
@@ -31,8 +35,15 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
   final priceCtrl = TextEditingController();
   final descriptionCtrl = TextEditingController();
   final quantityCtrl = TextEditingController();
+  final sizeCmCtrl = TextEditingController();
+  final sizeInCtrl = TextEditingController();
 
-  String? imagePath; // asset OR file path
+  // Old local path (still used for preview immediately after picking)
+  String? imagePath;
+
+  // ✅ NEW: firestore storage url (permanent)
+  String? imageUrl;
+
   String selectedMaterial = "Canvas";
   String coa = "Yes";
   String selectedCategory = "Painting";
@@ -40,31 +51,38 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
   bool _picking = false;
   bool _saving = false;
 
+  bool get _isEdit => widget.editArtwork != null;
+
   @override
   void initState() {
     super.initState();
+    final art = widget.editArtwork;
+    if (art == null) return;
 
-    if (widget.editIndex != null) {
-      final art = ArtworkData.artworks[widget.editIndex!];
+    titleCtrl.text = (art["title"] ?? "").toString();
+    priceCtrl.text = (art["price"] ?? "").toString();
+    descriptionCtrl.text = (art["description"] ?? "").toString();
+    quantityCtrl.text = (art["totalQuantity"] ?? 0).toString();
 
-      titleCtrl.text = _asString(art["title"]);
-      priceCtrl.text = _asString(art["price"]).replaceAll("₹", "").trim();
-      descriptionCtrl.text = _asString(art["description"]);
+    // ✅ if artwork already saved, use url
+    imageUrl = (art["imageUrl"] ?? "").toString().trim();
 
-      // ✅ safe int -> string
-      quantityCtrl.text = _asInt(art["totalQuantity"]).toString();
+    // keep old field just in case (for preview fallback)
+    imagePath = (art["imagePath"] ?? "").toString().trim();
 
-      imagePath = _asString(art["image"]);
+    final cat = (art["category"] ?? "").toString();
+    if (categories.contains(cat)) selectedCategory = cat;
 
-      final paper = _asString(art["paper"]);
-      selectedMaterial = paper.isEmpty ? "Canvas" : paper;
+    final paper = (art["paper"] ?? "").toString();
+    if (paper.isNotEmpty) selectedMaterial = paper;
 
-      final coaSaved = _asString(art["coa"]);
-      coa = coaSaved.isEmpty ? "Yes" : coaSaved;
+    final coaVal = (art["coa"] ?? "").toString();
+    if (coaVal == "Yes" || coaVal == "No") coa = coaVal;
 
-      final savedCat = _asString(art["category"]);
-      selectedCategory = categories.contains(savedCat) ? savedCat : "Painting";
-    }
+    sizeCmCtrl.text =
+        (art["size_cm"] ?? "").toString().replaceAll("-", "").trim();
+    sizeInCtrl.text =
+        (art["size_in"] ?? "").toString().replaceAll("-", "").trim();
   }
 
   @override
@@ -73,6 +91,8 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     priceCtrl.dispose();
     descriptionCtrl.dispose();
     quantityCtrl.dispose();
+    sizeCmCtrl.dispose();
+    sizeInCtrl.dispose();
     super.dispose();
   }
 
@@ -87,17 +107,46 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
       );
 
       if (!mounted) return;
-
       if (picked == null) return;
-      setState(() => imagePath = picked.path);
+
+      // ✅ local preview path
+      setState(() {
+        imagePath = picked.path;
+        // If you choose new image, we will re-upload and overwrite imageUrl
+        // so don't keep old url as "final"
+      });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Image pick failed: ${e.toString()}")),
-      );
+      _snack("Image pick failed: $e");
     } finally {
       if (mounted) setState(() => _picking = false);
     }
+  }
+
+  // ✅ Upload picked local image to Firebase Storage and return download URL
+  Future<String> _uploadToStorage({
+    required String artworkId,
+    required String localPath,
+  }) async {
+    final file = File(localPath);
+    if (!await file.exists()) {
+      throw Exception("Selected image file not found. Pick again.");
+    }
+
+    // Basic ext detection
+    final ext = localPath.toLowerCase().endsWith(".png") ? "png" : "jpg";
+
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child("artworks")
+        .child("$artworkId.$ext");
+
+    // Upload
+    final task = await storageRef.putFile(file);
+
+    // Get URL
+    final url = await task.ref.getDownloadURL();
+    return url;
   }
 
   Future<void> _saveArtwork() async {
@@ -106,34 +155,20 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
 
     if (!_formKey.currentState!.validate()) return;
 
-    final img = (imagePath ?? "").trim();
-    if (img.isEmpty) {
-      _snack("Please upload an image");
+    final int price = int.tryParse(priceCtrl.text.trim()) ?? 0;
+    if (price <= 0) {
+      _snack("Enter a valid price");
       return;
     }
 
-    // ✅ if file path, ensure file exists (avoids Image.file crash)
-    if (!img.startsWith("assets/")) {
-      final f = File(img);
-      if (!await f.exists()) {
-        _snack("Selected image file not found. Pick again.");
-        return;
-      }
-    }
-
-    final totalQty = int.tryParse(quantityCtrl.text.trim()) ?? 0;
+    final int totalQty = int.tryParse(quantityCtrl.text.trim()) ?? 0;
     if (totalQty <= 0) {
       _snack("Enter a valid quantity");
       return;
     }
 
-    // ✅ keep soldQuantity on edit, otherwise 0
-    final soldQty = widget.editIndex != null
-        ? _asInt(ArtworkData.artworks[widget.editIndex!]["soldQuantity"])
-        : 0;
-
-    // ✅ don’t allow totalQuantity < soldQuantity when editing
-    if (widget.editIndex != null && totalQty < soldQty) {
+    final soldQty = _isEdit ? _toInt(widget.editArtwork?["soldQuantity"]) : 0;
+    if (_isEdit && totalQty < soldQty) {
       _snack("Total quantity cannot be less than sold ($soldQty)");
       return;
     }
@@ -141,37 +176,56 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     setState(() => _saving = true);
 
     try {
-      final artwork = <String, dynamic>{
-        "id": widget.editIndex != null
-            ? ArtworkData.artworks[widget.editIndex!]["id"]
-            : DateTime.now().millisecondsSinceEpoch.toString(),
+      final String id = _isEdit
+          ? (widget.editArtwork?["id"] ?? "").toString()
+          : DateTime.now().millisecondsSinceEpoch.toString();
 
+      if (id.trim().isEmpty) {
+        throw Exception("Artwork id missing (cannot edit without id)");
+      }
+
+      // ✅ Decide final imageUrl
+      String finalUrl = imageUrl?.trim() ?? "";
+
+      // If admin picked a new local image (not assets, not http), upload it
+      final pickedPath = (imagePath ?? "").trim();
+
+      final bool hasNewLocalPicked =
+          pickedPath.isNotEmpty && !pickedPath.startsWith("assets/") && !pickedPath.startsWith("http");
+
+      if (hasNewLocalPicked) {
+        finalUrl = await _uploadToStorage(artworkId: id, localPath: pickedPath);
+      }
+
+      // If adding new artwork, must have image
+      if (!_isEdit && finalUrl.isEmpty) {
+        _snack("Please upload an image");
+        return;
+      }
+
+      // If editing, allow keeping old URL
+      if (_isEdit && finalUrl.isEmpty) {
+        _snack("Image missing. Pick image again.");
+        return;
+      }
+
+      final artwork = <String, dynamic>{
+        "id": id,
         "title": titleCtrl.text.trim(),
         "category": selectedCategory,
-        "price": "₹${priceCtrl.text.trim()}",
-        "image": img,
-
-        // keep rating if edit
-        "rating": widget.editIndex != null
-            ? (ArtworkData.artworks[widget.editIndex!]["rating"] ?? "0.0")
-            : "0.0",
-
+        "price": price, // store number
+        "imageUrl": finalUrl, // ✅ permanent URL (THIS FIXES YOUR ISSUE)
         "paper": selectedMaterial,
-        "size_cm": "-",
-        "size_in": "-",
         "coa": coa,
         "description": descriptionCtrl.text.trim(),
-
-        // ✅ store as int
+        "size_cm": sizeCmCtrl.text.trim().isEmpty ? "-" : sizeCmCtrl.text.trim(),
+        "size_in": sizeInCtrl.text.trim().isEmpty ? "-" : sizeInCtrl.text.trim(),
         "totalQuantity": totalQty,
         "soldQuantity": soldQty,
+        "createdAt": widget.editArtwork?["createdAt"], // keep old if exists
       };
 
-      if (widget.editIndex != null) {
-        ArtworkData.artworks[widget.editIndex!] = artwork;
-      } else {
-        ArtworkData.artworks.add(artwork);
-      }
+      await backend.upsertArtwork(artwork);
 
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -184,17 +238,22 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
 
   @override
   Widget build(BuildContext context) {
+    // For preview: prefer local picked path, else url, else old path
+    final preview = (imagePath != null && imagePath!.trim().isNotEmpty)
+        ? imagePath!.trim()
+        : (imageUrl != null && imageUrl!.trim().isNotEmpty)
+            ? imageUrl!.trim()
+            : "";
+
     return AdminScaffold(
-      title: widget.editIndex == null ? "Add Artwork" : "Edit Artwork",
+      title: _isEdit ? "Edit Artwork" : "Add Artwork",
       showBack: true,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ✅ IMAGE PICKER
               GestureDetector(
                 onTap: _picking ? null : _pickImage,
                 child: Container(
@@ -205,24 +264,24 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
                     border: Border.all(color: Colors.grey),
                     color: Colors.white,
                   ),
-                  child: (imagePath == null || imagePath!.trim().isEmpty)
+                  child: preview.isEmpty
                       ? Center(
                           child: Text(
-                            _picking ? "Opening gallery..." : "Tap to upload image",
+                            _picking
+                                ? "Opening gallery..."
+                                : "Tap to upload image",
                           ),
                         )
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(14),
-                          child: _previewImage(imagePath!),
+                          child: _previewImage(preview),
                         ),
                 ),
               ),
-
               const SizedBox(height: 16),
 
               _input("Artwork Title", titleCtrl),
 
-              // ✅ CATEGORY DROPDOWN
               Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: DropdownButtonFormField<String>(
@@ -232,22 +291,19 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
                       .toList(),
                   onChanged: (v) =>
                       setState(() => selectedCategory = v ?? "Painting"),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? "Select a category" : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? "Select a category"
+                      : null,
                   decoration: _decor("Category"),
                 ),
               ),
 
-              _input(
-                "Price (without ₹)",
-                priceCtrl,
-                keyboard: TextInputType.number,
-              ),
-              _input(
-                "Total Quantity",
-                quantityCtrl,
-                keyboard: TextInputType.number,
-              ),
+              _input("Price (numbers only)", priceCtrl,
+                  keyboard: TextInputType.number),
+              _input("Total Quantity", quantityCtrl,
+                  keyboard: TextInputType.number),
+              _input("Size (cm) e.g. 30 x 40", sizeCmCtrl),
+              _input("Size (in) e.g. 12 x 16", sizeInCtrl),
 
               const SizedBox(height: 14),
 
@@ -257,7 +313,8 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
                   DropdownMenuItem(value: "Canvas", child: Text("Canvas")),
                   DropdownMenuItem(value: "Art Paper", child: Text("Art Paper")),
                 ],
-                onChanged: (v) => setState(() => selectedMaterial = v ?? "Canvas"),
+                onChanged: (v) =>
+                    setState(() => selectedMaterial = v ?? "Canvas"),
                 decoration: _decor("Material"),
               ),
 
@@ -285,7 +342,8 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
               TextFormField(
                 controller: descriptionCtrl,
                 maxLines: 4,
-                validator: (v) => (v == null || v.trim().isEmpty) ? "Required" : null,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? "Required" : null,
                 decoration: _decor("Description"),
               ),
 
@@ -296,11 +354,9 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: _saving ? null : _saveArtwork,
-                  child: Text(
-                    _saving
-                        ? "SAVING..."
-                        : (widget.editIndex == null ? "Add Artwork" : "Update Artwork"),
-                  ),
+                  child: Text(_saving
+                      ? "SAVING..."
+                      : (_isEdit ? "Update Artwork" : "Add Artwork")),
                 ),
               ),
             ],
@@ -311,6 +367,18 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
   }
 
   Widget _previewImage(String path) {
+    if (path.startsWith("http")) {
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (_, __, ___) => _imgError(),
+      );
+    }
+
     if (path.startsWith("assets/")) {
       return Image.asset(
         path,
@@ -334,11 +402,8 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     );
   }
 
-  Widget _input(
-    String label,
-    TextEditingController c, {
-    TextInputType keyboard = TextInputType.text,
-  }) {
+  Widget _input(String label, TextEditingController c,
+      {TextInputType keyboard = TextInputType.text}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
@@ -361,10 +426,7 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  // ---------- helpers ----------
-  String _asString(dynamic v) => (v ?? "").toString();
-
-  int _asInt(dynamic v) {
+  int _toInt(dynamic v) {
     if (v is int) return v;
     if (v is double) return v.toInt();
     if (v is String) return int.tryParse(v.trim()) ?? 0;

@@ -8,7 +8,7 @@ import 'add_artwork.dart';
 import 'exhibition_management.dart';
 import 'booking_overview.dart';
 import 'users_page.dart';
-import 'package:artiva/admin/manage_artworks.dart';
+import 'manage_artworks.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
@@ -114,13 +114,8 @@ class AdminDashboard extends StatelessWidget {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
-              constraints: const BoxConstraints(
-                minHeight: 120,
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 26,
-              ),
+              constraints: const BoxConstraints(minHeight: 120),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
               decoration: BoxDecoration(
                 color: const Color(0xFF7B2CBF).withOpacity(0.22),
                 borderRadius: BorderRadius.circular(24),

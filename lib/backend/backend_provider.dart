@@ -1,8 +1,5 @@
-import 'backend.dart';
-import 'fake_backend.dart';
+import 'package:artiva/backend/backend_service.dart';
 
-// ✅ Keep ONE instance for entire app runtime
-final Backend backend = FakeBackend();
-
-// Later (after Firebase), you will change ONLY this line to:
-// final Backend backend = FirebaseBackend();
+/// Global backend service instance
+/// Use it anywhere as: `backend`
+final BackendService backend = BackendService();

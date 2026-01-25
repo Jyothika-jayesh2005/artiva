@@ -1,9 +1,9 @@
-import 'package:artiva/customer/artwork_list.dart';
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/widgets/artwork_card.dart';
-import 'package:artiva/data/artwork_data.dart';
-import 'artwork_detail.dart';
+import 'package:artiva/customer/artwork_list.dart';
+import 'package:artiva/customer/artwork_detail.dart';
+import 'package:artiva/backend/backend_provider.dart'; // ✅ global backend
 
 class ArtHomePage extends StatefulWidget {
   const ArtHomePage({super.key});
@@ -28,7 +28,7 @@ class _ArtHomePageState extends State<ArtHomePage> {
 
   @override
   void dispose() {
-    _searchCtrl.dispose(); // ✅ FIX: avoid memory leak
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -65,7 +65,10 @@ class _ArtHomePageState extends State<ArtHomePage> {
             const SizedBox(height: 18),
             _sectionTitle("Featured Works"),
             const SizedBox(height: 12),
+
+            // ✅ FROM FIRESTORE
             _artHorizontalList(),
+
             const SizedBox(height: 110),
           ],
         ),
@@ -110,9 +113,6 @@ class _ArtHomePageState extends State<ArtHomePage> {
           return GestureDetector(
             onTap: () {
               setState(() => selectedCategory = index);
-
-              // If you WANT instant navigation, keep this line.
-              // If you don't want instant nav, delete next line.
               _goToList(categoryOverride: categories[index]);
             },
             child: Container(
@@ -192,8 +192,11 @@ class _ArtHomePageState extends State<ArtHomePage> {
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     color: Colors.white.withOpacity(0.2),
-                    child: const Icon(Icons.image_not_supported,
-                        color: Colors.white, size: 34),
+                    child: const Icon(
+                      Icons.image_not_supported,
+                      color: Colors.white,
+                      size: 34,
+                    ),
                   ),
                 ),
               ),
@@ -207,30 +210,58 @@ class _ArtHomePageState extends State<ArtHomePage> {
   Widget _artHorizontalList() {
     return SizedBox(
       height: 300,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        itemCount: ArtworkData.artworks.length,
-        itemBuilder: (context, index) {
-          final art = ArtworkData.artworks[index];
+      child: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: backend.watchArtworks(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          return Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: SizedBox(
-              width: 160,
-              height: 300,
-              child: ArtworkCard(
-                artwork: art,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ArtworkDetailsPage(artwork: art),
-                    ),
-                  );
-                },
-              ),
-            ),
+          if (snap.hasError) {
+            return Center(child: Text("Error: ${snap.error}"));
+          }
+
+          final artworks = snap.data ?? [];
+          if (artworks.isEmpty) {
+            return const Center(child: Text("No artworks added yet"));
+          }
+
+          return ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            itemCount: artworks.length,
+            itemBuilder: (context, index) {
+              final raw = artworks[index];
+
+              // ✅ IMPORTANT FIX:
+              // Your UI expects "image", but Firestore is saving "imagePath"
+              final normalized = Map<String, dynamic>.from(raw);
+              normalized["image"] ??= normalized["imagePath"];
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: SizedBox(
+                  width: 160,
+                  height: 300,
+                  child: ArtworkCard(
+                    artwork: normalized,
+                    onTap: () {
+                      final detailArt = normalized.map(
+                        (k, v) => MapEntry(k, (v ?? "").toString()),
+                      );
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ArtworkDetailsPage(artwork: detailArt),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
           );
         },
       ),

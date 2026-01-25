@@ -5,11 +5,7 @@ class ArtworkCard extends StatelessWidget {
   final Map<String, dynamic> artwork;
   final VoidCallback? onTap;
 
-  const ArtworkCard({
-    super.key,
-    required this.artwork,
-    this.onTap,
-  });
+  const ArtworkCard({super.key, required this.artwork, this.onTap});
 
   static const _titleColor = Color(0xFF1F1F1F);
   static const _categoryColor = Color(0xFF7A7A7A);
@@ -29,6 +25,15 @@ class ArtworkCard extends StatelessWidget {
         ) ??
         0;
 
+    // ✅ Rating values from artwork map (Firestore fields)
+    final double avgRating = (artwork["avgRating"] is num)
+        ? (artwork["avgRating"] as num).toDouble()
+        : double.tryParse((artwork["avgRating"] ?? "").toString()) ?? 0.0;
+
+    final int ratingCount = (artwork["ratingCount"] is num)
+        ? (artwork["ratingCount"] as num).toInt()
+        : int.tryParse((artwork["ratingCount"] ?? "").toString()) ?? 0;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -47,7 +52,6 @@ class ArtworkCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: LayoutBuilder(
           builder: (context, c) {
-            // ✅ This is what stops "bottom overflowed by 1px/14px"
             const double textAreaH = 78.0;
 
             final double maxH = c.maxHeight.isFinite ? c.maxHeight : 260.0;
@@ -61,11 +65,9 @@ class ArtworkCard extends StatelessWidget {
                   width: double.infinity,
                   child: _image(artwork["image"]),
                 ),
-
                 SizedBox(
                   height: textAreaH,
                   child: Padding(
-                    // ✅ Pixel-consistent left alignment
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,15 +94,57 @@ class ArtworkCard extends StatelessWidget {
                           ),
                         ),
                         const Spacer(),
-                        Text(
-                          "₹$price",
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: _priceColor,
-                          ),
+
+                        // ✅ Price left, Rating right (rating does NOT take extra space)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                "₹$price",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: _priceColor,
+                                ),
+                              ),
+                            ),
+
+                            // ✅ ALWAYS show rating UI so you can see the change
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.star_rounded,
+                                  size: 16,
+                                  color: Color(0xFFFFB300),
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  ratingCount == 0
+                                      ? "—"
+                                      : avgRating.toStringAsFixed(1),
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _titleColor,
+                                  ),
+                                ),
+                                if (ratingCount > 0) ...[
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "($ratingCount)",
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: _categoryColor,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -115,7 +159,6 @@ class ArtworkCard extends StatelessWidget {
   }
 
   Widget _image(dynamic img) {
-    // ✅ admin may store file path as String
     if (img is String && img.isNotEmpty) {
       if (img.startsWith("assets/")) {
         return Image.asset(
@@ -133,7 +176,6 @@ class ArtworkCard extends StatelessWidget {
       );
     }
 
-    // ✅ sometimes File is passed directly
     if (img is File) {
       return Image.file(
         img,

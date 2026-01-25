@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "607522708837",
+    "project_id": "artiva-app",
+    "storage_bucket": "artiva-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:607522708837:android:f3e2dcde4ebb422017958c",
+        "android_client_info": {
+          "package_name": "com.example.artiva"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA91W2MLptk7i6iyaIxy8WQz95heIghQmg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

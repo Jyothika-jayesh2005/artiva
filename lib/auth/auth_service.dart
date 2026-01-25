@@ -1,16 +1,103 @@
 import 'package:flutter/foundation.dart';
-import 'package:artiva/backend/backend_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:artiva/backend/models.dart';
 
 class AuthService {
+  AuthService._internal();
+
+  static final AuthService instance = AuthService._internal();
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
   final ValueNotifier<AppUser?> userNotifier = ValueNotifier<AppUser?>(null);
 
   AppUser? get currentUser => userNotifier.value;
 
-  Future<AppUser> login(String email, String password) async {
-    final u = await backend.login(email: email, password: password);
-    userNotifier.value = u;
-    return u;
+  bool _isListening = false;
+
+  /// Call this ONCE after Firebase.initializeApp() in main()
+  void startAuthListener() {
+    if (_isListening) return;
+    _isListening = true;
+
+    _auth.authStateChanges().listen((user) async {
+      if (user == null) {
+        userNotifier.value = null;
+        return;
+      }
+      userNotifier.value = await _getOrCreateUserDoc(user);
+    });
+  }
+
+  Future<AppUser> _getOrCreateUserDoc(User user) async {
+    final DocumentReference<Map<String, dynamic>> ref =
+        _db.collection('users').doc(user.uid);
+
+    // Keep snapshot untyped (avoids version mismatch issues)
+    final DocumentSnapshot snap = await ref.get();
+
+    // If user doc not exists -> create as normal user
+    if (!snap.exists) {
+      final newUser = AppUser(
+        uid: user.uid,
+        name: user.displayName ?? 'User',
+        email: user.email ?? '',
+        phone: '',
+        role: Role.user,
+      );
+
+      await ref.set({
+        'name': newUser.name,
+        'email': newUser.email,
+        'phone': newUser.phone,
+        'role': 'user',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return newUser;
+    }
+
+    final Map<String, dynamic> data =
+        (snap.data() as Map<String, dynamic>?) ?? <String, dynamic>{};
+
+    final roleStr = (data['role'] ?? 'user').toString().toLowerCase();
+
+    return AppUser(
+      uid: user.uid,
+      name: (data['name'] ?? user.displayName ?? 'User').toString(),
+      email: (data['email'] ?? user.email ?? '').toString(),
+      phone: (data['phone'] ?? '').toString(),
+      role: roleStr == 'admin' ? Role.admin : Role.user,
+    );
+  }
+
+  /// ✅ This is the missing method your LoginScreen is calling.
+  /// It forces Firestore role = admin for a specific admin email.
+  Future<void> ensureAdminRole(String adminEmail) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception("Not logged in.");
+
+    final email = (user.email ?? "").trim().toLowerCase();
+    if (email != adminEmail.trim().toLowerCase()) {
+      // Not the admin account -> don't change anything
+      return;
+    }
+
+    final DocumentReference<Map<String, dynamic>> ref =
+        _db.collection('users').doc(user.uid);
+
+    await ref.set({
+      'email': user.email ?? adminEmail,
+      'name': user.displayName ?? 'Admin',
+      'role': 'admin',
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    // refresh local user model so routing uses admin immediately
+    userNotifier.value = await _getOrCreateUserDoc(user);
   }
 
   Future<AppUser> register({
@@ -19,18 +106,63 @@ class AuthService {
     required String phone,
     required String password,
   }) async {
-    final u = await backend.register(
-      name: name,
-      email: email,
-      phone: phone,
-      password: password,
-    );
-    userNotifier.value = u;
-    return u;
+    try {
+      final cred = await _auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      final user = cred.user;
+      if (user == null) throw Exception('Registration failed. Try again.');
+
+      await user.updateDisplayName(name);
+
+      final DocumentReference<Map<String, dynamic>> ref =
+          _db.collection('users').doc(user.uid);
+
+      await ref.set({
+        'name': name,
+        'email': email.trim(),
+        'phone': phone.trim(),
+        'role': 'user',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      final appUser = AppUser(
+        uid: user.uid,
+        name: name,
+        email: email.trim(),
+        phone: phone.trim(),
+        role: Role.user,
+      );
+
+      userNotifier.value = appUser;
+      return appUser;
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_friendlyAuthError(e));
+    }
+  }
+
+  Future<AppUser> login(String email, String password) async {
+    try {
+      final cred = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      final user = cred.user;
+      if (user == null) throw Exception('Login failed. Try again.');
+
+      final appUser = await _getOrCreateUserDoc(user);
+      userNotifier.value = appUser;
+      return appUser;
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_friendlyAuthError(e));
+    }
   }
 
   Future<void> logout() async {
-    await backend.logout();
+    await _auth.signOut();
     userNotifier.value = null;
   }
 
@@ -38,10 +170,47 @@ class AuthService {
     required String name,
     required String phone,
   }) async {
-    final u = await backend.updateProfile(name: name, phone: phone);
-    userNotifier.value = u;
-    return u;
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Not logged in.');
+
+    await user.updateDisplayName(name);
+
+    final DocumentReference<Map<String, dynamic>> ref =
+        _db.collection('users').doc(user.uid);
+
+    await ref.update({
+      'name': name,
+      'phone': phone.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final updated = await _getOrCreateUserDoc(user);
+    userNotifier.value = updated;
+    return updated;
+  }
+
+  String _friendlyAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-email':
+        return 'Invalid email address.';
+      case 'user-not-found':
+        return 'No user found for this email.';
+      case 'wrong-password':
+        return 'Wrong password.';
+      case 'invalid-credential':
+        return 'Email or password is incorrect.';
+      case 'email-already-in-use':
+        return 'This email is already registered.';
+      case 'weak-password':
+        return 'Password is too weak (min 6 chars).';
+      case 'network-request-failed':
+        return 'Network error. Check your internet.';
+      case 'too-many-requests':
+        return 'Too many attempts. Try again later.';
+      default:
+        return e.message ?? 'Authentication error.';
+    }
   }
 }
 
-final AuthService authService = AuthService();
+final AuthService authService = AuthService.instance;

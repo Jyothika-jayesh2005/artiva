@@ -1,10 +1,13 @@
 import 'dart:io';
-import 'package:artiva/customer/profile/saved_address.dart';
 import 'package:flutter/material.dart';
-import '../widgets/customer_scaffold.dart';
-import 'package:artiva/data/artwork_data.dart';
 
-import 'package:artiva/backend/backend_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'package:artiva/customer/profile/saved_address.dart';
+import 'package:artiva/widgets/customer_scaffold.dart';
+
+import 'package:artiva/auth/auth_service.dart';
+import 'package:artiva/backend/backend_service.dart';
 import 'package:artiva/backend/models.dart';
 
 class ArtworkDetailsPage extends StatefulWidget {
@@ -17,14 +20,103 @@ class ArtworkDetailsPage extends StatefulWidget {
 }
 
 class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
+  final BackendService backend = BackendService();
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  String get _artId => (widget.artwork["id"] ?? "").toString().trim();
+
+  // ✅ Convert dynamic price to int safely (handles int, "25000", "₹25,000", etc.)
+  int _priceAsInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.round();
+
+    final s = v.toString();
+    final cleaned = s.replaceAll(RegExp(r'[^0-9]'), '');
+    return int.tryParse(cleaned) ?? 0;
+  }
+
+  // ✅ Indian commas + ₹ symbol
+  String _formatIndianCurrency(int amount) {
+    if (amount <= 0) return "₹ 0";
+
+    final s = amount.toString();
+    if (s.length <= 3) return "₹ $s";
+
+    final last3 = s.substring(s.length - 3);
+    final rest = s.substring(0, s.length - 3);
+
+    final reg = RegExp(r'(\d)(?=(\d{2})+(?!\d))');
+    final formattedRest = rest.replaceAllMapped(reg, (m) => '${m[1]},');
+
+    return "₹ $formattedRest,$last3";
+  }
+
+  DocumentReference<Map<String, dynamic>>? _favRef() {
+    final user = authService.currentUser;
+    if (user == null) return null;
+
+    return _db
+        .collection("users")
+        .doc(user.email)
+        .collection("favourites")
+        .doc(_artId);
+  }
+
+  Future<void> _toggleFavourite(String formattedPrice, String imageAny) async {
+    final user = authService.currentUser;
+    if (user == null) {
+      _snack("Please login first.");
+      return;
+    }
+    if (_artId.isEmpty) {
+      _snack("Artwork ID missing.");
+      return;
+    }
+
+    final ref = _favRef();
+    if (ref == null) return;
+
+    final snap = await ref.get();
+    if (snap.exists) {
+      await ref.delete();
+      _snack("Removed from favourites");
+    } else {
+      await ref.set({
+        "artworkId": _artId,
+        "title": (widget.artwork["title"] ?? "").toString(),
+        "imageAny": imageAny, // ✅ store url/path (whatever you have)
+        "price": formattedPrice,
+        "createdAt": FieldValue.serverTimestamp(),
+      });
+      _snack("Added to favourites");
+    }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(milliseconds: 900)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final id = (widget.artwork["id"] ?? "").toString();
+    final id = _artId;
 
     final title = (widget.artwork["title"] ?? "Artwork").toString();
-    final price = (widget.artwork["price"] ?? "-").toString();
-    final imagePath =
-        (widget.artwork["image"] ?? "assets/placeholder.png").toString();
+
+    final int priceValue = _priceAsInt(widget.artwork["price"]);
+    final String priceText =
+        priceValue > 0 ? _formatIndianCurrency(priceValue) : "-";
+
+    // ✅ FIX: prefer Firestore URL first
+    final imageAny = (widget.artwork["imageUrl"] ??
+            widget.artwork["imagePath"] ??
+            widget.artwork["image"] ??
+            "assets/placeholder.png")
+        .toString();
+
     final category = (widget.artwork["category"] ?? "-").toString();
     final description = (widget.artwork["description"] ?? "").toString();
 
@@ -34,7 +126,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
         int.tryParse((widget.artwork["soldQuantity"] ?? "0").toString()) ?? 0;
     final int remainingQty = (totalQty - soldQty).clamp(0, totalQty);
 
-    final bool isWishlisted = ArtworkData.isFavourite(id);
+    final favRef = _favRef();
 
     return CustomerScaffold(
       currentIndex: -1,
@@ -47,7 +139,6 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 14),
-
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Stack(
@@ -56,39 +147,32 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                         aspectRatio: 3 / 4,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(22),
-                          child: _imageWidget(imagePath),
+                          child: _imageWidget(imageAny), // ✅ fixed
                         ),
                       ),
 
-                      // ✅ HEART BUTTON (REAL WISHLIST)
                       Positioned(
                         top: 12,
                         right: 12,
                         child: CircleAvatar(
                           backgroundColor: Colors.white,
-                          child: IconButton(
-                            icon: Icon(
-                              isWishlisted
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              color: const Color(0xFFE16417),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                ArtworkData.toggleFavourite(id);
-                              });
+                          child: StreamBuilder<
+                              DocumentSnapshot<Map<String, dynamic>>>(
+                            stream: (favRef == null || id.isEmpty)
+                                ? const Stream.empty()
+                                : favRef.snapshots(),
+                            builder: (context, snap) {
+                              final isWishlisted = snap.data?.exists ?? false;
 
-                              final nowWishlisted = ArtworkData.isFavourite(id);
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    nowWishlisted
-                                        ? "Added to favourites"
-                                        : "Removed from favourites",
-                                  ),
-                                  duration: const Duration(milliseconds: 900),
+                              return IconButton(
+                                icon: Icon(
+                                  isWishlisted
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color: const Color(0xFFE16417),
                                 ),
+                                onPressed: () =>
+                                    _toggleFavourite(priceText, imageAny),
                               );
                             },
                           ),
@@ -116,7 +200,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            price,
+                            priceText,
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -124,17 +208,22 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                             ),
                           ),
 
-                          // ✅ REAL rating from backend
                           FutureBuilder<ArtworkRatingSummary>(
                             future: backend.getArtworkRating(id),
                             builder: (context, snap) {
-                              if (!snap.hasData) {
+                              if (snap.connectionState ==
+                                  ConnectionState.waiting) {
                                 return _badge(Icons.star, "—", Colors.orange);
                               }
-                              final r = snap.data!;
-                              final text = r.count == 0
-                                  ? "—"
-                                  : "${r.label} (${r.count})";
+                              if (snap.hasError) {
+                                return _badge(Icons.star, "—", Colors.orange);
+                              }
+                              final r = snap.data ??
+                                  const ArtworkRatingSummary(avg: 0, count: 0);
+
+                              final text =
+                                  r.count == 0 ? "—" : "${r.label} (${r.count})";
+
                               return _badge(Icons.star, text, Colors.orange);
                             },
                           ),
@@ -232,7 +321,6 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
             ),
           ),
 
-          // BUY BAR
           Positioned(
             left: 0,
             right: 0,
@@ -259,7 +347,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                     children: [
                       const Text("Price", style: TextStyle(color: Colors.grey)),
                       Text(
-                        price,
+                        priceText,
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -282,8 +370,8 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                               MaterialPageRoute(
                                 builder: (_) => SavedAddressPage(
                                   isFromCheckout: true,
-                                  artwork: Map<String, String>.from(
-                                      safeStringMap),
+                                  artwork:
+                                      Map<String, String>.from(safeStringMap),
                                 ),
                               ),
                             );
@@ -291,7 +379,9 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFE16417),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 36, vertical: 14),
+                        horizontal: 36,
+                        vertical: 14,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -310,16 +400,37 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
     );
   }
 
+  // ✅ FIXED: supports http, assets, and local file
   Widget _imageWidget(String path) {
+    if (path.isEmpty) {
+      return Container(
+        color: Colors.grey.shade200,
+        child: const Center(child: Icon(Icons.image_not_supported, size: 44)),
+      );
+    }
+
+    if (path.startsWith("http")) {
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (_, __, ___) => Container(
+          color: Colors.grey.shade200,
+          child: const Center(child: Icon(Icons.image_not_supported, size: 44)),
+        ),
+      );
+    }
+
     if (path.startsWith("assets/")) {
       return Image.asset(
         path,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => Container(
           color: Colors.grey.shade200,
-          child: const Center(
-            child: Icon(Icons.image_not_supported, size: 44),
-          ),
+          child: const Center(child: Icon(Icons.image_not_supported, size: 44)),
         ),
       );
     }
@@ -329,9 +440,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => Container(
         color: Colors.grey.shade200,
-        child: const Center(
-          child: Icon(Icons.image_not_supported, size: 44),
-        ),
+        child: const Center(child: Icon(Icons.image_not_supported, size: 44)),
       ),
     );
   }

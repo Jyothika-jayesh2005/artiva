@@ -2,8 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import 'package:artiva/widgets/admin_scaffold.dart';
-import 'package:artiva/backend/backend_provider.dart';
 import 'package:artiva/backend/models.dart';
+import 'package:artiva/backend/backend_service.dart';
 
 import 'add_edit_exhibition.dart';
 
@@ -17,6 +17,9 @@ class ExhibitionManagementPage extends StatefulWidget {
 
 class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
   bool _showArchived = false;
+
+  // ✅ DEFINE BACKEND
+  final BackendService backend = BackendService();
 
   Future<List<Exhibition>> _load() async {
     return backend.getExhibitions(includeArchived: true);
@@ -32,7 +35,9 @@ class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
           onPressed: () async {
             final ok = await Navigator.push<bool>(
               context,
-              MaterialPageRoute(builder: (_) => const AddEditExhibitionPage()),
+              MaterialPageRoute(
+                builder: (_) => const AddEditExhibitionPage(),
+              ),
             );
             if (ok == true && mounted) setState(() {});
           },
@@ -69,7 +74,9 @@ class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
                 if (snap.hasError) {
                   return Center(
                     child: Text(
-                      snap.error.toString().replaceFirst('Exception: ', ''),
+                      snap.error
+                          .toString()
+                          .replaceFirst('Exception: ', ''),
                     ),
                   );
                 }
@@ -130,7 +137,6 @@ class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
                 const SizedBox(height: 6),
                 Text(
                   "Seats: ${ex.bookedSeats}/${ex.totalSeats}  •  Remaining: $remaining  •  ₹${ex.pricePerSeat}/seat",
-                  style: const TextStyle(color: Colors.black87),
                 ),
                 const SizedBox(height: 10),
                 Row(
@@ -141,7 +147,8 @@ class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
                           final ok = await Navigator.push<bool>(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => AddEditExhibitionPage(existing: ex),
+                              builder: (_) =>
+                                  AddEditExhibitionPage(existing: ex),
                             ),
                           );
                           if (ok == true && mounted) setState(() {});
@@ -155,15 +162,29 @@ class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
                       child: ElevatedButton.icon(
                         onPressed: () async {
                           try {
-                            await backend.setExhibitionArchived(ex.id, !ex.isArchived);
+                            await backend.setExhibitionArchived(
+                              ex.id,
+                              !ex.isArchived,
+                            );
                             if (mounted) setState(() {});
-                            _snack(ex.isArchived ? "Unarchived" : "Archived");
+                            _snack(
+                              ex.isArchived ? "Unarchived" : "Archived",
+                            );
                           } catch (e) {
-                            _snack(e.toString().replaceFirst('Exception: ', ''));
+                            _snack(
+                              e.toString()
+                                  .replaceFirst('Exception: ', ''),
+                            );
                           }
                         },
-                        icon: Icon(ex.isArchived ? Icons.unarchive : Icons.archive),
-                        label: Text(ex.isArchived ? "Unarchive" : "Archive"),
+                        icon: Icon(
+                          ex.isArchived
+                              ? Icons.unarchive
+                              : Icons.archive,
+                        ),
+                        label: Text(
+                          ex.isArchived ? "Unarchive" : "Archive",
+                        ),
                       ),
                     ),
                   ],
@@ -178,11 +199,13 @@ class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
   }
 
   String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  ${two(dt.hour)}:${two(dt.minute)}";
+    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  "
+        "${two(dt.hour)}:${two(dt.minute)}";
   }
 }

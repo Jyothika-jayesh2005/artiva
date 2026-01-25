@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/admin_scaffold.dart';
 
-import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/backend/backend_service.dart'; // ✅ FIXED
 import 'package:artiva/backend/models.dart';
 
 class BookingOverviewPage extends StatefulWidget {
@@ -14,6 +14,9 @@ class BookingOverviewPage extends StatefulWidget {
 class _BookingOverviewPageState extends State<BookingOverviewPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tab;
+
+  // ✅ DEFINE BACKEND
+  final BackendService backend = BackendService();
 
   @override
   void initState() {
@@ -71,7 +74,8 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
     );
   }
 
-  // ✅ EXHIBITION BOOKINGS (REAL - FROM BACKEND)
+  // ---------------- EXHIBITION BOOKINGS ----------------
+
   Widget _exhibitionBookingsTab() {
     return FutureBuilder<List<ExhibitionBooking>>(
       future: backend.getAllExhibitionBookings(),
@@ -107,28 +111,22 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      child: Icon(Icons.confirmation_number),
-                    ),
-                    title: Text(
-                      b.exhibitionTitle,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        "Customer: ${b.customerName}\n"
-                        "Email: ${b.customerEmail}\n"
-                        "Exhibition ID: ${b.exhibitionId}\n"
-                        "Venue: ${b.venue}\n"
-                        "Seats: ${b.seats}\n"
-                        "Price/Seat: ₹${b.pricePerSeat}  •  Total: ₹${b.totalAmount}\n"
-                        "Booked: ${_formatDateTime(b.bookedAt)}",
-                      ),
-                    ),
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.confirmation_number),
+                  ),
+                  title: Text(
+                    b.exhibitionTitle,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    "Customer: ${b.customerName}\n"
+                    "Email: ${b.customerEmail}\n"
+                    "Exhibition ID: ${b.exhibitionId}\n"
+                    "Venue: ${b.venue}\n"
+                    "Seats: ${b.seats}\n"
+                    "Price/Seat: ₹${b.pricePerSeat}  •  Total: ₹${b.totalAmount}\n"
+                    "Booked: ${_formatDateTime(b.bookedAt)}",
                   ),
                 ),
               );
@@ -139,7 +137,8 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
     );
   }
 
-  // ✅ ARTWORK ORDERS (FROM BACKEND)
+  // ---------------- ARTWORK ORDERS ----------------
+
   Widget _artworkOrdersTab() {
     return FutureBuilder<List<ArtworkOrder>>(
       future: backend.getAllOrders(),
@@ -179,10 +178,7 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 10,
-                  ),
+                  padding: const EdgeInsets.all(10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -195,15 +191,12 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
                           o.artTitle,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            "Customer: ${o.customerName}\n"
-                            "Email: ${o.customerEmail}\n"
-                            "Qty: ${o.quantity}  •  Price: ${o.price}\n"
-                            "Status: ${o.status.name}\n"
-                            "Ordered: ${_formatDateTime(o.orderedAt)}",
-                          ),
+                        subtitle: Text(
+                          "Customer: ${o.customerName}\n"
+                          "Email: ${o.customerEmail}\n"
+                          "Qty: ${o.quantity}  •  Price: ${o.price}\n"
+                          "Status: ${o.status.name}\n"
+                          "Ordered: ${_formatDateTime(o.orderedAt)}",
                         ),
                         trailing: DropdownButton<OrderStatus>(
                           value: o.status,
@@ -224,7 +217,8 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
                               _snack("Status updated to ${v.name}");
                             } catch (e) {
                               _snack(
-                                e.toString().replaceFirst('Exception: ', ''),
+                                e.toString()
+                                    .replaceFirst('Exception: ', ''),
                               );
                             }
                           },
@@ -232,13 +226,15 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
                       ),
 
                       if (hasReview) ...[
-                        const Divider(height: 18),
+                        const Divider(),
                         Row(
                           children: [
                             const Icon(Icons.star, size: 18),
                             const SizedBox(width: 6),
                             Text(
-                              o.rating == null ? "No rating" : "${o.rating}/5",
+                              o.rating == null
+                                  ? "No rating"
+                                  : "${o.rating}/5",
                               style:
                                   const TextStyle(fontWeight: FontWeight.w600),
                             ),
@@ -259,16 +255,16 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
                             "\"${o.review!.trim()}\"",
                             style: const TextStyle(
                               fontStyle: FontStyle.italic,
-                              color: Colors.black87,
                             ),
                           ),
                         ],
-                        const SizedBox(height: 10),
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
-                            onPressed: () async => await _confirmDeleteReview(o),
-                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () async =>
+                                await _confirmDeleteReview(o),
+                            icon:
+                                const Icon(Icons.delete, color: Colors.red),
                             label: const Text(
                               "Delete Review",
                               style: TextStyle(color: Colors.red),
@@ -287,6 +283,8 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
     );
   }
 
+  // ---------------- HELPERS ----------------
+
   Future<void> _confirmDeleteReview(ArtworkOrder order) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -302,7 +300,8 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Delete", style: TextStyle(color: Colors.red)),
+            child:
+                const Text("Delete", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -321,11 +320,13 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
   }
 
   String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  ${two(dt.hour)}:${two(dt.minute)}";
+    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  "
+        "${two(dt.hour)}:${two(dt.minute)}";
   }
 }

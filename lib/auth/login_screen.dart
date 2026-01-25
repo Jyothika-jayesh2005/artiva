@@ -19,6 +19,8 @@ class _LoginScreenState extends State<LoginScreen> {
   static const Color primary = Color(0xFFE16417);
   static const Color secondary = Color(0xFF80431F);
 
+  static const String adminEmail = "admin@artiva.com";
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -57,6 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 40),
+
                     _buildInputField(
                       hint: 'Email',
                       icon: Icons.email,
@@ -64,6 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _emailController,
                     ),
                     const SizedBox(height: 18),
+
                     _buildInputField(
                       hint: 'Password',
                       icon: Icons.lock,
@@ -78,19 +82,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         onPressed: _loading
                             ? null
-                            : () {
-                                setState(
-                                    () => _passwordVisible = !_passwordVisible);
-                              },
+                            : () => setState(
+                                  () => _passwordVisible = !_passwordVisible,
+                                ),
                       ),
                     ),
+
                     const SizedBox(height: 30),
+
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed:
-                            _loading ? null : () async => await _handleLogin(),
+                        onPressed: _loading ? null : _handleLogin,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           elevation: 0,
@@ -109,31 +113,50 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 22),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          "Don't have an account? ",
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                        GestureDetector(
-                          onTap: _loading
-                              ? null
-                              : () {
-                                  Navigator.pushReplacementNamed(
-                                      context, '/register');
-                                },
-                          child: const Text(
-                            'Register',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+
+                    // ✅ Don’t show Register option when admin email is typed
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _emailController,
+                      builder: (_, value, __) {
+                        final email = value.text.trim().toLowerCase();
+                        final isAdminTrying = email == adminEmail;
+
+                        if (isAdminTrying) {
+                          return const Text(
+                            "Admin account has no registration.",
+                            style: TextStyle(color: Colors.white70),
+                          );
+                        }
+
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              "Don't have an account? ",
+                              style: TextStyle(color: Colors.white70),
                             ),
-                          ),
-                        ),
-                      ],
+                            GestureDetector(
+                              onTap: _loading
+                                  ? null
+                                  : () => Navigator.pushReplacementNamed(
+                                        context,
+                                        '/register',
+                                      ),
+                              child: const Text(
+                                'Register',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
+
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -157,9 +180,18 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
 
     try {
-      final AppUser user = await authService.login(email, password);
+      // ✅ Login
+      AppUser user = await authService.login(email, password);
       if (!mounted) return;
 
+      // ✅ If admin email logs in, force role = admin in Firestore
+      if (email.toLowerCase() == adminEmail) {
+        await authService.ensureAdminRole(adminEmail);
+        // refresh local user model
+        user = authService.currentUser ?? user;
+      }
+
+      // ✅ Final routing based on role
       Navigator.pushReplacementNamed(
         context,
         user.role == Role.admin ? '/admin' : '/home',

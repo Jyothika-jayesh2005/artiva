@@ -35,28 +35,19 @@ class WelcomeScreen extends StatelessWidget {
                       letterSpacing: 1.4,
                     ),
                   ),
-
                   const SizedBox(height: 14),
-
                   const Text(
                     'Explore Art. Experience Exhibitions.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
                   ),
-
                   const SizedBox(height: 48),
 
-                  // ✅ LOGIN BUTTON (same style as login/register)
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/login');
-                      },
+                      onPressed: () => Navigator.pushNamed(context, '/login'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         elevation: 0,
@@ -75,17 +66,13 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 18),
 
-                  // ✅ REGISTER BUTTON (outline style)
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/register');
-                      },
+                      onPressed: () => Navigator.pushNamed(context, '/register'),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Colors.white),
                         shape: RoundedRectangleBorder(
