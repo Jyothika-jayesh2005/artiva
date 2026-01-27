@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -12,9 +11,7 @@ class FavouritesPage extends StatelessWidget {
 
   Stream<List<Map<String, dynamic>>> _watchFavourites() {
     final user = authService.currentUser;
-    if (user == null) {
-      return const Stream.empty();
-    }
+    if (user == null) return const Stream.empty();
 
     return FirebaseFirestore.instance
         .collection("users")
@@ -26,16 +23,21 @@ class FavouritesPage extends StatelessWidget {
       return snap.docs.map((d) {
         final data = d.data();
 
-        // Ensure id exists (artwork id)
         final id = (data["artworkId"] ?? d.id).toString();
 
-        // IMPORTANT:
-        // ArtworkCard expects keys like: id, title, price, imagePath/image, category, etc.
-        // We normalize common fields here.
+        // ✅ Normalize image fields so ArtworkCard + Details can display
+        final imageAny = (data["image"] ??
+                data["imageAny"] ??
+                data["imageUrl"] ??
+                data["imagePath"] ??
+                "")
+            .toString();
+
         return {
           ...data,
           "id": id,
-          "imagePath": (data["imagePath"] ?? data["image"] ?? "").toString(),
+          "imageUrl": imageAny.startsWith("http") ? imageAny : "",
+          "imagePath": imageAny.startsWith("http") ? "" : imageAny,
         };
       }).toList();
     });
@@ -45,7 +47,6 @@ class FavouritesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = authService.currentUser;
 
-    // Not logged in
     if (user == null) {
       return CustomerScaffold(
         currentIndex: -1,
@@ -70,9 +71,7 @@ class FavouritesPage extends StatelessWidget {
           }
 
           if (snap.hasError) {
-            return Center(
-              child: Text("Error: ${snap.error}"),
-            );
+            return Center(child: Text("Error: ${snap.error}"));
           }
 
           final favs = snap.data ?? [];
@@ -99,7 +98,6 @@ class FavouritesPage extends StatelessWidget {
               itemBuilder: (context, index) {
                 final art = favs[index];
 
-                // If ArtworkCard / Details needs strings, convert safely where needed
                 return ArtworkCard(
                   artwork: art,
                   onTap: () {

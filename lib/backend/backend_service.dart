@@ -4,9 +4,8 @@ import 'package:artiva/backend/models.dart';
 class BackendService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // -------------------------
-  // helpers
-  // -------------------------
+  // ---------------- HELPERS ----------------
+
   int _asInt(dynamic v, {int fallback = 0}) {
     if (v == null) return fallback;
     if (v is int) return v;
@@ -28,8 +27,14 @@ class BackendService {
   }
 
   DateTime _asDate(dynamic v, {DateTime? fallback}) {
+    if (v == null) return fallback ?? DateTime.now();
     if (v is Timestamp) return v.toDate();
-    return fallback ?? DateTime.fromMillisecondsSinceEpoch(0);
+    if (v is DateTime) return v;
+    if (v is String) {
+      final dt = DateTime.tryParse(v);
+      if (dt != null) return dt;
+    }
+    return fallback ?? DateTime.now();
   }
 
   OrderStatus _statusFromString(String s) {
@@ -41,8 +46,8 @@ class BackendService {
         return OrderStatus.shipped;
       case 'delivered':
         return OrderStatus.delivered;
-      case 'cancelled':
-        return OrderStatus.cancelled;
+      
+      
       default:
         return OrderStatus.pending;
     }
@@ -50,16 +55,11 @@ class BackendService {
 
   String _statusToString(OrderStatus status) => status.name;
 
-  // =====================================================
-  // ARTWORKS (ADMIN + CUSTOMER)
-  // Collection: artworks
-  // =====================================================
+  // ---------------- ARTWORKS ----------------
 
   Future<void> upsertArtwork(Map<String, dynamic> artwork) async {
     final String id = (artwork["id"] ?? "").toString().trim();
-    if (id.isEmpty) {
-      throw Exception("Artwork id missing");
-    }
+    if (id.isEmpty) throw Exception("Artwork id missing");
 
     await _db.collection('artworks').doc(id).set({
       ...artwork,
@@ -75,35 +75,54 @@ class BackendService {
   Stream<List<Map<String, dynamic>>> watchArtworks() {
     return _db
         .collection('artworks')
-        .orderBy('createdAt', descending: true)
+        .orderBy('updatedAt', descending: true)
         .snapshots()
-        .map((snap) {
-          return snap.docs.map((d) {
-            return {
-              ...d.data(),
-              "id": d.id, // ✅ VERY IMPORTANT
-            };
-          }).toList();
-        });
+        .map((snap) => snap.docs.map((d) => {...d.data(), "id": d.id}).toList());
   }
 
   Future<List<Map<String, dynamic>>> getArtworksOnce() async {
     final snap = await _db
         .collection('artworks')
-        .orderBy('createdAt', descending: true)
+        .orderBy('updatedAt', descending: true)
         .get();
 
-    return snap.docs.map((d) {
-      return {...d.data(), "id": d.id};
-    }).toList();
+    return snap.docs.map((d) => {...d.data(), "id": d.id}).toList();
   }
 
-  // =====================================================
-  // EXHIBITIONS (ADMIN + CUSTOMER)
-  // =====================================================
+  Future<void> reduceStockAfterOrder({
+    required String artworkId,
+    required int qty,
+  }) async {
+    if (qty <= 0) throw Exception("Invalid quantity");
+
+    final artRef = _db.collection('artworks').doc(artworkId);
+
+    await _db.runTransaction<void>((tx) async {
+      final snap = await tx.get(artRef);
+      if (!snap.exists) throw Exception("Artwork not found");
+
+      final data = snap.data() as Map<String, dynamic>;
+
+      final total = _asInt(data['totalQuantity']);
+      final sold = _asInt(data['soldQuantity']);
+
+      final remaining = total - sold;
+      if (remaining < qty) {
+        throw Exception("Out of stock. Only $remaining left.");
+      }
+
+      tx.update(artRef, {
+        'soldQuantity': sold + qty,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  // ---------------- EXHIBITIONS ----------------
 
   Future<void> upsertExhibition(Exhibition ex) async {
     await _db.collection('exhibitions').doc(ex.id).set({
+      'id': ex.id,
       'title': ex.title,
       'venue': ex.venue,
       'dateTime': Timestamp.fromDate(ex.dateTime),
@@ -111,9 +130,10 @@ class BackendService {
       'totalSeats': ex.totalSeats,
       'bookedSeats': ex.bookedSeats,
       'pricePerSeat': ex.pricePerSeat,
-      'imagePath': ex.imagePath,
+      'imageUrl': ex.imageUrl,
       'isArchived': ex.isArchived,
       'updatedAt': FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
@@ -122,30 +142,31 @@ class BackendService {
   }
 
   Stream<List<Exhibition>> watchExhibitions() {
-    return _db.collection('exhibitions').orderBy('dateTime').snapshots().map((
-      snap,
-    ) {
-      return snap.docs.map((d) {
-        final data = d.data();
-        return Exhibition(
-          id: d.id,
-          title: _asString(data['title']),
-          venue: _asString(data['venue']),
-          dateTime: _asDate(data['dateTime']),
-          description: _asString(data['description']),
-          totalSeats: _asInt(data['totalSeats']),
-          bookedSeats: _asInt(data['bookedSeats']),
-          pricePerSeat: _asInt(data['pricePerSeat']),
-          imagePath: _asString(data['imagePath']),
-          isArchived: _asBool(data['isArchived']),
-        );
-      }).toList();
-    });
+    return _db.collection('exhibitions').orderBy('dateTime').snapshots().map(
+      (snap) {
+        return snap.docs.map((d) {
+          final data = d.data();
+          return Exhibition(
+            id: d.id,
+            title: _asString(data['title']),
+            venue: _asString(data['venue']),
+            dateTime: _asDate(data['dateTime'], fallback: DateTime.now()),
+            description: _asString(data['description']),
+            totalSeats: _asInt(data['totalSeats']),
+            bookedSeats: _asInt(data['bookedSeats']),
+            pricePerSeat: _asInt(data['pricePerSeat']),
+            imageUrl: _asString(
+              data['imageUrl'],
+              fallback: _asString(data['imagePath']),
+            ),
+            isArchived: _asBool(data['isArchived']),
+          );
+        }).toList();
+      },
+    );
   }
 
-  Future<List<Exhibition>> getExhibitions({
-    bool includeArchived = false,
-  }) async {
+  Future<List<Exhibition>> getExhibitions({bool includeArchived = false}) async {
     final snap = await _db.collection('exhibitions').orderBy('dateTime').get();
 
     final list = snap.docs.map((d) {
@@ -154,12 +175,15 @@ class BackendService {
         id: d.id,
         title: _asString(data['title']),
         venue: _asString(data['venue']),
-        dateTime: _asDate(data['dateTime']),
+        dateTime: _asDate(data['dateTime'], fallback: DateTime.now()),
         description: _asString(data['description']),
         totalSeats: _asInt(data['totalSeats']),
         bookedSeats: _asInt(data['bookedSeats']),
         pricePerSeat: _asInt(data['pricePerSeat']),
-        imagePath: _asString(data['imagePath']),
+        imageUrl: _asString(
+          data['imageUrl'],
+          fallback: _asString(data['imagePath']),
+        ),
         isArchived: _asBool(data['isArchived']),
       );
     }).toList();
@@ -175,9 +199,7 @@ class BackendService {
     });
   }
 
-  // =====================================================
-  // BOOK EXHIBITION (CUSTOMER)
-  // =====================================================
+  // ---------------- EXHIBITION BOOKINGS ----------------
 
   Future<String> bookExhibition({
     required String exhibitionId,
@@ -190,7 +212,7 @@ class BackendService {
     final exRef = _db.collection('exhibitions').doc(exhibitionId);
     final bookingRef = _db.collection('exhibition_bookings').doc();
 
-    return _db.runTransaction((tx) async {
+    return _db.runTransaction<String>((tx) async {
       final exSnap = await tx.get(exRef);
       if (!exSnap.exists) throw Exception("Exhibition not found.");
 
@@ -230,10 +252,6 @@ class BackendService {
     });
   }
 
-  // =====================================================
-  // EXHIBITION BOOKINGS (ADMIN)
-  // =====================================================
-
   Future<List<ExhibitionBooking>> getAllExhibitionBookings() async {
     final snap = await _db
         .collection('exhibition_bookings')
@@ -256,10 +274,6 @@ class BackendService {
       );
     }).toList();
   }
-
-  // =====================================================
-  // EXHIBITION BOOKINGS (CUSTOMER)
-  // =====================================================
 
   Future<List<ExhibitionBooking>> getMyExhibitionBookings(
     String customerEmail,
@@ -287,13 +301,36 @@ class BackendService {
     }).toList();
   }
 
-  // =====================================================
-  // ARTWORK ORDERS (ADMIN)
-  // =====================================================
+  // ---------------- ORDERS ----------------
+  
+
+  Future<int?> getMyArtworkRating(String artworkId, String customerEmail) async {
+    final snap = await _db
+        .collection('orders')
+        .where('artId', isEqualTo: artworkId)
+        .where('customerEmail', isEqualTo: customerEmail)
+        .where('rating', isGreaterThan: 0)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) return null;
+
+    final r = snap.docs.first.data()['rating'];
+    return r is num ? r.toInt() : null;
+  }
 
   Future<List<ArtworkOrder>> getAllOrders() async {
     final snap = await _db
         .collection('orders')
+        .orderBy('orderedAt', descending: true)
+        .get();
+    return snap.docs.map(_orderFromDoc).toList();
+  }
+
+  Future<List<ArtworkOrder>> getMyOrders(String customerEmail) async {
+    final snap = await _db
+        .collection('orders')
+        .where('customerEmail', isEqualTo: customerEmail)
         .orderBy('orderedAt', descending: true)
         .get();
     return snap.docs.map(_orderFromDoc).toList();
@@ -311,21 +348,8 @@ class BackendService {
       'rating': FieldValue.delete(),
       'review': FieldValue.delete(),
       'ratedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
-  }
-
-  // =====================================================
-  // ARTWORK ORDERS (CUSTOMER)
-  // =====================================================
-
-  Future<List<ArtworkOrder>> getMyOrders(String customerEmail) async {
-    final snap = await _db
-        .collection('orders')
-        .where('customerEmail', isEqualTo: customerEmail)
-        .orderBy('orderedAt', descending: true)
-        .get();
-
-    return snap.docs.map(_orderFromDoc).toList();
   }
 
   Future<void> submitOrderRating({
@@ -333,20 +357,50 @@ class BackendService {
     required int rating,
     String? review,
   }) async {
-    // 1) Save rating into the order
-    await _db.collection('orders').doc(orderId).update({
-      'rating': rating,
-      'review': review,
-      'ratedAt': FieldValue.serverTimestamp(),
+    if (rating < 1 || rating > 5) {
+      throw Exception("Rating must be between 1 and 5.");
+    }
+
+    final orderRef = _db.collection('orders').doc(orderId);
+    String artId = "";
+
+    await _db.runTransaction<void>((tx) async {
+      final orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) throw Exception("Order not found.");
+
+      final data = orderSnap.data() as Map<String, dynamic>;
+
+      final statusStr = _asString(data['status'], fallback: 'pending');
+      final status = _statusFromString(statusStr);
+      if (status != OrderStatus.delivered) {
+        throw Exception("You can rate only after the order is delivered.");
+      }
+
+      final locked = data['ratingLocked'] == true;
+      if (locked) {
+        throw Exception("You already rated this order.");
+      }
+
+      final alreadyRated = (data['ratedAt'] != null) || (data['rating'] != null);
+      if (alreadyRated) {
+        tx.update(orderRef, {'ratingLocked': true});
+        throw Exception("You already rated this order.");
+      }
+
+      artId = (data['artId'] ?? '').toString().trim();
+
+      tx.update(orderRef, {
+        'rating': rating,
+        'review': review,
+        'ratedAt': FieldValue.serverTimestamp(),
+        'ratingLocked': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     });
 
-    // 2) Read order -> get artId
-    final orderSnap = await _db.collection('orders').doc(orderId).get();
-    final orderData = orderSnap.data();
-    final String artId = (orderData?['artId'] ?? '').toString().trim();
     if (artId.isEmpty) return;
 
-    // 3) Get all rated orders for this artId
+    // Recompute avg rating
     final ratedOrdersSnap = await _db
         .collection('orders')
         .where('artId', isEqualTo: artId)
@@ -366,17 +420,30 @@ class BackendService {
 
     final double avg = count == 0 ? 0.0 : (sum / count);
 
-    // 4) Save summary into artworks/{artId} so cards can show rating
     await _db.collection('artworks').doc(artId).set({
       'avgRating': avg,
       'ratingCount': count,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-  }
 
-  // =====================================================
-  // CREATE ORDER (CUSTOMER)
-  // =====================================================
+    // optional user_ratings
+    final orderSnap = await orderRef.get();
+    final email = _asString(orderSnap.data()?['customerEmail']);
+
+    if (email.isNotEmpty) {
+      await _db
+          .collection('artworks')
+          .doc(artId)
+          .collection('user_ratings')
+          .doc(email)
+          .set({
+        'rating': rating,
+        'review': review,
+        'ratedAt': FieldValue.serverTimestamp(),
+        'orderId': orderId,
+      });
+    }
+  }
 
   Future<String> createOrder({
     required String userId,
@@ -385,36 +452,44 @@ class BackendService {
     required int price,
     required int quantity,
     required String address,
-    String? imagePath,
+    String? addressId,
+    Map<String, dynamic>? addressSnapshot,
+    String? imageUrl,
     required String customerName,
     required String customerEmail,
-    String? size,
-    String? inch,
+    String? sizeCm,
+    String? sizeIn,
   }) async {
     final ref = _db.collection('orders').doc();
 
-    await ref.set({
+    final payload = <String, dynamic>{
       'userId': userId,
       'artId': artworkId,
       'artTitle': artTitle,
       'price': price,
       'quantity': quantity,
       'address': address,
-      'imagePath': imagePath,
+      'imageUrl': imageUrl,
       'customerName': customerName,
       'customerEmail': customerEmail,
-      'size': size,
-      'inch': inch,
+      'size_cm': sizeCm,
+      'size_in': sizeIn,
       'status': _statusToString(OrderStatus.pending),
       'orderedAt': FieldValue.serverTimestamp(),
-    });
+      'updatedAt': FieldValue.serverTimestamp(),
+      'ratingLocked': false,
+    };
 
+    if ((addressId ?? "").trim().isNotEmpty) {
+      payload['addressId'] = addressId!.trim();
+    }
+    if (addressSnapshot != null && addressSnapshot.isNotEmpty) {
+      payload['addressSnapshot'] = addressSnapshot;
+    }
+
+    await ref.set(payload);
     return ref.id;
   }
-
-  // =====================================================
-  // ARTWORK RATING SUMMARY
-  // =====================================================
 
   Future<ArtworkRatingSummary> getArtworkRating(String artworkId) async {
     final snap = await _db
@@ -423,16 +498,13 @@ class BackendService {
         .where('rating', isGreaterThan: 0)
         .get();
 
-    if (snap.docs.isEmpty) {
-      return const ArtworkRatingSummary(avg: 0, count: 0);
-    }
+    if (snap.docs.isEmpty) return const ArtworkRatingSummary(avg: 0, count: 0);
 
     double sum = 0;
     int count = 0;
 
     for (final doc in snap.docs) {
-      final data = doc.data();
-      final r = data['rating'];
+      final r = doc.data()['rating'];
       if (r is num) {
         sum += r.toDouble();
         count++;
@@ -440,13 +512,8 @@ class BackendService {
     }
 
     if (count == 0) return const ArtworkRatingSummary(avg: 0, count: 0);
-
     return ArtworkRatingSummary(avg: sum / count, count: count);
   }
-
-  // =====================================================
-  // PRIVATE HELPER
-  // =====================================================
 
   ArtworkOrder _orderFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> d) {
     final data = d.data();
@@ -455,14 +522,22 @@ class BackendService {
     final status = _statusFromString(statusStr);
 
     final orderedAt = data['orderedAt'];
-    final orderedDate = orderedAt is Timestamp
-        ? orderedAt.toDate()
-        : DateTime.now();
+    final orderedDate = orderedAt is Timestamp ? orderedAt.toDate() : DateTime.now();
 
-    // NOTE:
-    // I only use fields that exist in YOUR models.dart you posted earlier.
-    // If your ArtworkOrder model doesn’t have address/imagePath/size/inch,
-    // do NOT force them here (it will cause compile errors).
+    final String imgUrl = _asString(
+      data['imageUrl'],
+      fallback: _asString(data['imagePath']),
+    );
+
+    final address = _asString(data['address']);
+    final addressId = data['addressId']?.toString();
+
+    final addressSnapshot = data['addressSnapshot'];
+    final Map<String, dynamic>? addressSnap =
+        addressSnapshot is Map ? Map<String, dynamic>.from(addressSnapshot) : null;
+
+    final bool ratingLocked = data['ratingLocked'] == true;
+
     return ArtworkOrder(
       id: d.id,
       artId: data['artId']?.toString(),
@@ -471,13 +546,22 @@ class BackendService {
       customerEmail: _asString(data['customerEmail']),
       quantity: _asInt(data['quantity']),
       price: _asInt(data['price']),
+      imageUrl: imgUrl.isEmpty ? null : imgUrl,
+      address: address.isEmpty ? null : address,
+      addressId: addressId,
+      addressSnapshot: addressSnap,
+      sizeCm: _asString(data['size_cm'], fallback: _asString(data['sizeCm'])).isEmpty
+          ? null
+          : _asString(data['size_cm'], fallback: _asString(data['sizeCm'])),
+      sizeIn: _asString(data['size_in'], fallback: _asString(data['sizeIn'])).isEmpty
+          ? null
+          : _asString(data['size_in'], fallback: _asString(data['sizeIn'])),
       status: status,
       orderedAt: orderedDate,
       rating: data['rating'] is num ? (data['rating'] as num).toInt() : null,
       review: data['review']?.toString(),
-      ratedAt: data['ratedAt'] is Timestamp
-          ? (data['ratedAt'] as Timestamp).toDate()
-          : null,
+      ratedAt: data['ratedAt'] is Timestamp ? (data['ratedAt'] as Timestamp).toDate() : null,
+      ratingLocked: ratingLocked,
     );
   }
 }

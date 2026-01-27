@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/widgets/artwork_card.dart';
 import 'package:artiva/customer/artwork_detail.dart';
-import 'package:artiva/backend/backend_provider.dart'; // global backend
+import 'package:artiva/backend/backend_service.dart';
 
 class ArtworkListPage extends StatefulWidget {
   final String initialQuery;
@@ -21,6 +21,8 @@ class ArtworkListPage extends StatefulWidget {
 class _ArtworkListPageState extends State<ArtworkListPage> {
   late final TextEditingController _searchCtrl;
   late String _selectedCategory;
+
+  final BackendService backend = BackendService(); // ✅ ADD
 
   @override
   void initState() {
@@ -51,7 +53,6 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
     }).toList();
   }
 
-  // ✅ Normalize Firestore artwork map so UI always gets the image in a common key
   Map<String, dynamic> _normalizeArtwork(Map<String, dynamic> art) {
     final image = (art["imageUrl"] ?? art["imagePath"] ?? art["image"] ?? "")
         .toString()
@@ -59,10 +60,9 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
 
     return {
       ...art,
-      // Many widgets use "image" key. Force it.
       "image": image,
-      "imagePath": image, // keep both for safety
-      "imageUrl": image,  // keep both for safety
+      "imagePath": image,
+      "imageUrl": image,
     };
   }
 
@@ -128,7 +128,6 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
               ],
             ),
           ),
-
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: backend.watchArtworks(),
@@ -162,7 +161,7 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
                       final art = filtered[index];
 
                       return ArtworkCard(
-                        artwork: art, // ✅ now has image/imagePath/imageUrl
+                        artwork: art,
                         onTap: () {
                           final detailArt = art.map(
                             (k, v) => MapEntry(k, (v ?? "").toString()),

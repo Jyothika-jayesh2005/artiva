@@ -1,5 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
+import 'package:artiva/auth/auth_service.dart';
 
 import 'add_edit_address.dart';
 import '../checkout/checkout_page.dart';
@@ -19,47 +21,86 @@ class SavedAddressPage extends StatefulWidget {
 }
 
 class _SavedAddressPageState extends State<SavedAddressPage> {
-  // ✅ START EMPTY (no dummy address)
-  final List<Map<String, String>> _addresses = [];
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // ✅ use this everywhere -> no yellow unused warning
+  String get _uid {
+    final u = authService.currentUser;
+    if (u == null) throw Exception("Please login first.");
+    return u.uid;
+  }
+
+  CollectionReference<Map<String, dynamic>> get _addrCol =>
+      _db.collection("users").doc(_uid).collection("addresses");
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> get _watchAddresses =>
+      _addrCol.orderBy("createdAt", descending: true).snapshots();
 
   Future<void> _addAddress() async {
+    final user = authService.currentUser;
+    if (user == null) {
+      _toast("Please login first.");
+      return;
+    }
+
     final result = await Navigator.push<Map<String, String>>(
       context,
       MaterialPageRoute(builder: (_) => const AddEditAddressPage()),
     );
-
     if (result == null) return;
 
-    setState(() {
-      _addresses.add(result);
+    await _addrCol.add({
+      ...result,
+      "createdAt": FieldValue.serverTimestamp(),
+      "updatedAt": FieldValue.serverTimestamp(),
     });
+
+    if (!mounted) return;
+    _toast("Address saved");
   }
 
-  Future<void> _editAddress(int index) async {
-    final current = _addresses[index];
+  Future<void> _editAddress({
+    required String docId,
+    required Map<String, dynamic> current,
+  }) async {
+    final user = authService.currentUser;
+    if (user == null) {
+      _toast("Please login first.");
+      return;
+    }
 
     final result = await Navigator.push<Map<String, String>>(
       context,
       MaterialPageRoute(
         builder: (_) => AddEditAddressPage(
-          name: current["name"],
-          phone: current["phone"],
-          address: current["address"],
-          city: current["city"],
-          district: current["district"],
-          pincode: current["pincode"],
+          name: (current["name"] ?? "").toString(),
+          phone: (current["phone"] ?? "").toString(),
+          address: (current["address"] ?? "").toString(),
+          city: (current["city"] ?? "").toString(),
+          district: (current["district"] ?? "").toString(),
+          pincode: (current["pincode"] ?? "").toString(),
         ),
       ),
     );
 
     if (result == null) return;
 
-    setState(() {
-      _addresses[index] = result;
+    await _addrCol.doc(docId).update({
+      ...result,
+      "updatedAt": FieldValue.serverTimestamp(),
     });
+
+    if (!mounted) return;
+    _toast("Address updated");
   }
 
-  Future<void> _deleteAddress(int index) async {
+  Future<void> _deleteAddress({required String docId}) async {
+    final user = authService.currentUser;
+    if (user == null) {
+      _toast("Please login first.");
+      return;
+    }
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -72,10 +113,7 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              "Delete",
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text("Delete", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -83,15 +121,18 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
 
     if (ok != true) return;
 
-    setState(() {
-      _addresses.removeAt(index);
-    });
+    await _addrCol.doc(docId).delete();
+
+    if (!mounted) return;
+    _toast("Address deleted");
   }
 
-  void _selectAddressForCheckout(Map<String, String> a) {
-    // ✅ behaves like a picker only if opened from checkout
+  void _selectAddressForCheckout({
+    required String addressId,
+    required Map<String, dynamic> addressSnap,
+  }) {
     if (widget.isFromCheckout && widget.artwork != null) {
-      final full = _formatFullAddress(a);
+      final full = _formatFullAddress(addressSnap);
 
       Navigator.pushReplacement(
         context,
@@ -99,26 +140,25 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
           builder: (_) => CheckoutPage(
             artwork: widget.artwork!,
             address: full,
+            addressSnapshot: Map<String, dynamic>.from(addressSnap),
+            addressId: addressId,
           ),
         ),
       );
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Open checkout to select an address")),
-    );
+    _toast("Open checkout to select an address");
   }
 
-  String _formatFullAddress(Map<String, String> a) {
-    final name = (a["name"] ?? "").trim();
-    final phone = (a["phone"] ?? "").trim();
-    final address = (a["address"] ?? "").trim();
-    final city = (a["city"] ?? "").trim();
-    final district = (a["district"] ?? "").trim();
-    final pincode = (a["pincode"] ?? "").trim();
+  String _formatFullAddress(Map<String, dynamic> a) {
+    final name = (a["name"] ?? "").toString().trim();
+    final phone = (a["phone"] ?? "").toString().trim();
+    final address = (a["address"] ?? "").toString().trim();
+    final city = (a["city"] ?? "").toString().trim();
+    final district = (a["district"] ?? "").toString().trim();
+    final pincode = (a["pincode"] ?? "").toString().trim();
 
-    // clean formatting (no extra commas)
     final line2Parts = <String>[
       if (city.isNotEmpty) city,
       if (district.isNotEmpty) district,
@@ -132,8 +172,15 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
     ].join("\n");
   }
 
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = authService.currentUser;
+
     return CustomerScaffold(
       currentIndex: -1,
       title: "Saved Addresses",
@@ -142,32 +189,54 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
         child: Column(
           children: [
             Expanded(
-              child: _addresses.isEmpty
-                  ? const Center(child: Text("No saved addresses"))
-                  : ListView.builder(
-                      itemCount: _addresses.length,
-                      itemBuilder: (context, index) {
-                        final a = _addresses[index];
+              child: user == null
+                  ? const Center(child: Text("Please login first."))
+                  : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: _watchAddresses,
+                      builder: (context, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        if (snap.hasError) {
+                          return Center(
+                            child: Text(
+                              snap.error.toString().replaceFirst("Exception: ", ""),
+                            ),
+                          );
+                        }
 
-                        final name = (a["name"] ?? "").trim();
-                        final phone = (a["phone"] ?? "").trim();
-                        final address = (a["address"] ?? "").trim();
-                        final city = (a["city"] ?? "").trim();
-                        final district = (a["district"] ?? "").trim();
-                        final pincode = (a["pincode"] ?? "").trim();
+                        final docs = snap.data?.docs ?? [];
+                        if (docs.isEmpty) {
+                          return const Center(child: Text("No saved addresses"));
+                        }
 
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: _addressCard(
-                            index: index,
-                            addressMap: a,
-                            name: name,
-                            phone: phone,
-                            address: address,
-                            city: city,
-                            district: district,
-                            pincode: pincode,
-                          ),
+                        return ListView.builder(
+                          itemCount: docs.length,
+                          itemBuilder: (context, index) {
+                            final d = docs[index];
+                            final a = d.data();
+
+                            final name = (a["name"] ?? "").toString().trim();
+                            final phone = (a["phone"] ?? "").toString().trim();
+                            final address = (a["address"] ?? "").toString().trim();
+                            final city = (a["city"] ?? "").toString().trim();
+                            final district = (a["district"] ?? "").toString().trim();
+                            final pincode = (a["pincode"] ?? "").toString().trim();
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              child: _addressCard(
+                                docId: d.id,
+                                addressSnap: a,
+                                name: name,
+                                phone: phone,
+                                address: address,
+                                city: city,
+                                district: district,
+                                pincode: pincode,
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -179,10 +248,7 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFFE16417),
                 side: const BorderSide(color: Color(0xFFE16417)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 12,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
               ),
             ),
           ],
@@ -192,8 +258,8 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
   }
 
   Widget _addressCard({
-    required int index,
-    required Map<String, String> addressMap,
+    required String docId,
+    required Map<String, dynamic> addressSnap,
     required String name,
     required String phone,
     required String address,
@@ -212,7 +278,10 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _selectAddressForCheckout(addressMap),
+        onTap: () => _selectAddressForCheckout(
+          addressId: docId,
+          addressSnap: addressSnap,
+        ),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -228,7 +297,6 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // NAME + ACTIONS
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -245,7 +313,7 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
                     children: [
                       IconButton(
                         tooltip: "Edit",
-                        onPressed: () => _editAddress(index),
+                        onPressed: () => _editAddress(docId: docId, current: addressSnap),
                         icon: const Icon(
                           Icons.edit,
                           size: 20,
@@ -254,7 +322,7 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
                       ),
                       IconButton(
                         tooltip: "Delete",
-                        onPressed: () => _deleteAddress(index),
+                        onPressed: () => _deleteAddress(docId: docId),
                         icon: const Icon(
                           Icons.delete_outline,
                           size: 20,

@@ -55,6 +55,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
   DocumentReference<Map<String, dynamic>>? _favRef() {
     final user = authService.currentUser;
     if (user == null) return null;
+    if (_artId.isEmpty) return null;
 
     return _db
         .collection("users")
@@ -63,7 +64,11 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
         .doc(_artId);
   }
 
-  Future<void> _toggleFavourite(String formattedPrice, String imageAny) async {
+  Future<void> _toggleFavourite({
+    required String title,
+    required String priceText,
+    required String imageAny,
+  }) async {
     final user = authService.currentUser;
     if (user == null) {
       _snack("Please login first.");
@@ -84,9 +89,11 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
     } else {
       await ref.set({
         "artworkId": _artId,
-        "title": (widget.artwork["title"] ?? "").toString(),
-        "imageAny": imageAny, // ✅ store url/path (whatever you have)
-        "price": formattedPrice,
+        "title": title,
+        // ✅ standardize: store in "image"
+        // (still compatible with old "imageAny")
+        "image": imageAny,
+        "price": priceText,
         "createdAt": FieldValue.serverTimestamp(),
       });
       _snack("Added to favourites");
@@ -103,6 +110,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final id = _artId;
+    final user = authService.currentUser;
 
     final title = (widget.artwork["title"] ?? "Artwork").toString();
 
@@ -110,7 +118,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
     final String priceText =
         priceValue > 0 ? _formatIndianCurrency(priceValue) : "-";
 
-    // ✅ FIX: prefer Firestore URL first
+    // ✅ prefer Firestore URL first
     final imageAny = (widget.artwork["imageUrl"] ??
             widget.artwork["imagePath"] ??
             widget.artwork["image"] ??
@@ -147,10 +155,11 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                         aspectRatio: 3 / 4,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(22),
-                          child: _imageWidget(imageAny), // ✅ fixed
+                          child: _imageWidget(imageAny),
                         ),
                       ),
 
+                      // ❤️ Favourite button
                       Positioned(
                         top: 12,
                         right: 12,
@@ -162,17 +171,20 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                                 ? const Stream.empty()
                                 : favRef.snapshots(),
                             builder: (context, snap) {
-                              final isWishlisted = snap.data?.exists ?? false;
+                              final isFav = snap.data?.exists ?? false;
 
                               return IconButton(
                                 icon: Icon(
-                                  isWishlisted
+                                  isFav
                                       ? Icons.favorite
                                       : Icons.favorite_border,
                                   color: const Color(0xFFE16417),
                                 ),
-                                onPressed: () =>
-                                    _toggleFavourite(priceText, imageAny),
+                                onPressed: () => _toggleFavourite(
+                                  title: title,
+                                  priceText: priceText,
+                                  imageAny: imageAny,
+                                ),
                               );
                             },
                           ),
@@ -208,6 +220,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                             ),
                           ),
 
+                          // ⭐ overall rating
                           FutureBuilder<ArtworkRatingSummary>(
                             future: backend.getArtworkRating(id),
                             builder: (context, snap) {
@@ -223,27 +236,43 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
 
                               final text =
                                   r.count == 0 ? "—" : "${r.label} (${r.count})";
-
                               return _badge(Icons.star, text, Colors.orange);
                             },
                           ),
                         ],
                       ),
 
+                      // 👤 show user's rating (optional)
+                      const SizedBox(height: 10),
+                      if (user != null && id.isNotEmpty)
+                        FutureBuilder<int?>(
+                          future: backend.getMyArtworkRating(id, user.email),
+                          builder: (context, snap) {
+                            final myR = snap.data;
+                            if (myR == null) return const SizedBox.shrink();
+                            return _badge(Icons.person, "You: $myR/5",
+                                Colors.blueGrey);
+                          },
+                        ),
+
                       const SizedBox(height: 8),
 
                       Text(
                         category,
-                        style: const TextStyle(fontSize: 14, color: Colors.grey),
+                        style:
+                            const TextStyle(fontSize: 14, color: Colors.grey),
                       ),
 
                       const SizedBox(height: 6),
                       Row(
                         children: [
                           Icon(
-                            remainingQty > 0 ? Icons.check_circle : Icons.cancel,
+                            remainingQty > 0
+                                ? Icons.check_circle
+                                : Icons.cancel,
                             size: 16,
-                            color: remainingQty > 0 ? Colors.green : Colors.red,
+                            color:
+                                remainingQty > 0 ? Colors.green : Colors.red,
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -253,8 +282,9 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color:
-                                  remainingQty > 0 ? Colors.green : Colors.red,
+                              color: remainingQty > 0
+                                  ? Colors.green
+                                  : Colors.red,
                             ),
                           ),
                         ],
@@ -321,6 +351,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
             ),
           ),
 
+          // Bottom buy bar
           Positioned(
             left: 0,
             right: 0,
@@ -345,7 +376,8 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("Price", style: TextStyle(color: Colors.grey)),
+                      const Text("Price",
+                          style: TextStyle(color: Colors.grey)),
                       Text(
                         priceText,
                         style: const TextStyle(
@@ -370,8 +402,8 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                               MaterialPageRoute(
                                 builder: (_) => SavedAddressPage(
                                   isFromCheckout: true,
-                                  artwork:
-                                      Map<String, String>.from(safeStringMap),
+                                  artwork: Map<String, String>.from(
+                                      safeStringMap),
                                 ),
                               ),
                             );
@@ -388,7 +420,8 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                     ),
                     child: Text(
                       remainingQty == 0 ? "Out of Stock" : "Buy Now",
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 16),
                     ),
                   ),
                 ],
@@ -400,7 +433,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
     );
   }
 
-  // ✅ FIXED: supports http, assets, and local file
+  // ✅ supports http, assets, and local file
   Widget _imageWidget(String path) {
     if (path.isEmpty) {
       return Container(
@@ -487,8 +520,8 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                   style: const TextStyle(fontSize: 13, color: Colors.grey)),
               Text(
                 value,
-                style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -506,8 +539,8 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
               style: const TextStyle(fontSize: 13, color: Colors.grey)),
           const SizedBox(height: 4),
           Text(value,
-              style:
-                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              style: const TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w600)),
         ],
       ),
     );

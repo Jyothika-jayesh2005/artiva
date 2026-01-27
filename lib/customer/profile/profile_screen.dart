@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/auth/auth_service.dart';
+import 'package:artiva/backend/models.dart';
 
 import 'profile_settings.dart';
 import 'my_orders.dart';
@@ -43,7 +44,6 @@ class ProfileScreen extends StatelessWidget {
     await authService.logout();
     if (!context.mounted) return;
 
-    // ✅ Always return to welcome (clean stack)
     Navigator.pushNamedAndRemoveUntil(
       context,
       '/',
@@ -53,100 +53,115 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = authService.currentUser;
+    return ValueListenableBuilder(
+      valueListenable: authService.userNotifier,
+      builder: (context, AppUser? user, _) {
+        final name = user?.name ?? "Guest";
+        final email = user?.email ?? "-";
+        final photoUrl = (user?.photoUrl ?? "").trim();
 
-    final name = user?.name ?? "Guest";
-    final email = user?.email ?? "-";
+        return CustomerScaffold(
+          currentIndex: -1,
+          title: "Profile",
+          body: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              const SizedBox(height: 10),
 
-    return CustomerScaffold(
-      currentIndex: -1,
-      title: "Profile",
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const SizedBox(height: 10),
-
-          Center(
-            child: Column(
-              children: [
-                const CircleAvatar(
-                  radius: 42,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, size: 42, color: primary),
+              Center(
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 42,
+                      backgroundColor: Colors.white,
+                      backgroundImage:
+                          photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                      child: photoUrl.isEmpty
+                          ? const Icon(Icons.person,
+                              size: 42, color: primary)
+                          : null,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(email, style: const TextStyle(color: Colors.grey)),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  name,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                Text(email, style: const TextStyle(color: Colors.grey)),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 30),
-
-          _cardItem(
-            context,
-            icon: Icons.person_outline,
-            title: "Profile Settings",
-            page: const ProfileSettingsPage(),
-          ),
-          _cardItem(
-            context,
-            icon: Icons.shopping_bag_outlined,
-            title: "My Orders",
-            page: const MyOrdersPage(),
-          ),
-          _cardItem(
-            context,
-            icon: Icons.confirmation_number_outlined,
-            title: "My Passes",
-            page: const MyPassesPage(),
-          ),
-          _cardItem(
-            context,
-            icon: Icons.location_on_outlined,
-            title: "Saved Addresses",
-            page: const SavedAddressPage(),
-          ),
-          _cardItem(
-            context,
-            icon: Icons.favorite_border,
-            title: "Favourites",
-            page: const FavouritesPage(),
-          ),
-          _cardItem(
-            context,
-            icon: Icons.help_outline,
-            title: "Help & Support",
-            page: const HelpSupportPage(),
-          ),
-          _cardItem(
-            context,
-            icon: Icons.info_outline,
-            title: "About / Terms",
-            page: const AboutTermsPage(),
-          ),
-
-          const SizedBox(height: 20),
-
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text(
-                "Logout",
-                style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
               ),
-              onTap: () => _logout(context),
-            ),
+
+              const SizedBox(height: 30),
+
+              _cardItem(
+                context,
+                icon: Icons.person_outline,
+                title: "Profile Settings",
+                page: const ProfileSettingsPage(),
+              ),
+              _cardItem(
+                context,
+                icon: Icons.shopping_bag_outlined,
+                title: "My Orders",
+                page: const MyOrdersPage(),
+              ),
+              _cardItem(
+                context,
+                icon: Icons.confirmation_number_outlined,
+                title: "My Passes",
+                page: const MyPassesPage(),
+              ),
+              _cardItem(
+                context,
+                icon: Icons.location_on_outlined,
+                title: "Saved Addresses",
+                page: const SavedAddressPage(),
+              ),
+              _cardItem(
+                context,
+                icon: Icons.favorite_border,
+                title: "Favourites",
+                page: const FavouritesPage(),
+              ),
+              _cardItem(
+                context,
+                icon: Icons.help_outline,
+                title: "Help & Support",
+                page: const HelpSupportPage(),
+              ),
+              _cardItem(
+                context,
+                icon: Icons.info_outline,
+                title: "About / Terms",
+                page: const AboutTermsPage(),
+              ),
+
+              const SizedBox(height: 20),
+
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.red),
+                  title: const Text(
+                    "Logout",
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () => _logout(context),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

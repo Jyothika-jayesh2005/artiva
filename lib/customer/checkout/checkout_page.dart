@@ -1,16 +1,28 @@
-import 'package:artiva/customer/checkout/payment_page.dart';
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
+import 'payment_page.dart';
 
 class CheckoutPage extends StatelessWidget {
-  final Map<String, String> artwork;
+  final Map<String, dynamic> artwork; // ✅ FIXED
   final String address;
+  final Map<String, dynamic> addressSnapshot;
+  final String addressId;
 
-  const CheckoutPage({super.key, required this.artwork, required this.address});
+  const CheckoutPage({
+    super.key,
+    required this.artwork,
+    required this.address,
+    required this.addressSnapshot,
+    required this.addressId,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final image = artwork["image"] ?? "";
+    final image = artwork["imageUrl"] ??
+                  artwork["imagePath"] ??
+                  artwork["image"] ??
+                  "";
+
     final title = artwork["title"] ?? "Artwork";
     final category = artwork["category"] ?? "";
     final price = artwork["price"] ?? "-";
@@ -24,44 +36,23 @@ class CheckoutPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _sectionTitle("Artwork"),
-
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: image.isEmpty
-                    ? Container(
-                        width: 60,
-                        height: 80,
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.image_not_supported),
-                      )
-                    : Image.asset(
-                        image,
-                        width: 60,
-                        height: 80,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 60,
-                          height: 80,
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.broken_image),
-                        ),
-                      ),
+                child: _artworkImage(image.toString()),
               ),
-              title: Text(title),
-              subtitle: Text(category),
+              title: Text(title.toString()),
+              subtitle: Text(category.toString()),
               trailing: Text(
-                price,
+                price.toString(),
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Color(0xFFE16417),
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
-
             _sectionTitle("Delivery Address"),
             Container(
               width: double.infinity,
@@ -72,9 +63,7 @@ class CheckoutPage extends StatelessWidget {
               ),
               child: Text(address.isEmpty ? "-" : address),
             ),
-
             const Spacer(),
-
             SizedBox(
               width: double.infinity,
               height: 48,
@@ -86,25 +75,61 @@ class CheckoutPage extends StatelessWidget {
                       builder: (_) => PaymentPage(
                         artwork: artwork,
                         address: address,
+                        addressSnapshot: addressSnapshot,
+                        addressId: addressId,
                       ),
                     ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE16417),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
                 ),
-                child: const Text(
-                  "Proceed to Payment",
-                  style: TextStyle(color: Colors.white),
-                ),
+                child: const Text("Proceed to Payment"),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+
+  // ✅ FIXED IMAGE HANDLER
+  Widget _artworkImage(String image) {
+    if (image.isEmpty) {
+      return _placeholder();
+    }
+
+    if (image.startsWith("http")) {
+      return Image.network(
+        image,
+        width: 60,
+        height: 80,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+
+    if (image.startsWith("assets/")) {
+      return Image.asset(
+        image,
+        width: 60,
+        height: 80,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+
+    return _placeholder();
+  }
+
+  Widget _placeholder() {
+    return Container(
+      width: 60,
+      height: 80,
+      color: Colors.grey.shade200,
+      child: const Icon(Icons.image_not_supported),
     );
   }
 
@@ -117,4 +142,4 @@ class CheckoutPage extends StatelessWidget {
       ),
     );
   }
-}
+

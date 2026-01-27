@@ -6,13 +6,17 @@ import 'package:artiva/auth/auth_service.dart';
 import 'package:artiva/backend/backend_service.dart';
 
 class PaymentPage extends StatefulWidget {
-  final Map<String, dynamic> artwork; // ✅ correct type
+  final Map<String, dynamic> artwork;
   final String address;
+  final Map<String, dynamic>? addressSnapshot;
+  final String? addressId;
 
   const PaymentPage({
     super.key,
     required this.artwork,
     required this.address,
+    this.addressSnapshot,
+    this.addressId,
   });
 
   @override
@@ -21,8 +25,6 @@ class PaymentPage extends StatefulWidget {
 
 class _PaymentPageState extends State<PaymentPage> {
   bool _loading = false;
-
-  // ✅ backend instance
   final BackendService backend = BackendService();
 
   @override
@@ -40,29 +42,28 @@ class _PaymentPageState extends State<PaymentPage> {
           children: [
             _sectionTitle("Artwork"),
             _infoRow("Title", title),
-            _infoRow("Price", priceText),
-            const SizedBox(height: 20),
 
-            _sectionTitle("Deliver To"),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                widget.address,
-                style: const TextStyle(fontSize: 14),
+            // ✅ Bigger orange price (requested)
+            const SizedBox(height: 6),
+            const Text("Price", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 6),
+            Text(
+              priceText,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFFE16417), // ✅ orange
               ),
             ),
-            const SizedBox(height: 24),
 
+            const SizedBox(height: 18),
+
+            // ✅ QR UI like ExhibitionPaymentPage (icon-style, not image)
             const Text(
               "Scan the QR code using any UPI app",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             Center(
               child: Container(
@@ -82,25 +83,29 @@ class _PaymentPageState extends State<PaymentPage> {
                 child: const Icon(
                   Icons.qr_code_2,
                   size: 140,
-                  color: Color(0xFFE16417),
+                  color: Color(0xFFE16417), // ✅ orange
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-
+            const SizedBox(height: 12),
             const Center(
               child: Text(
                 "Google Pay • PhonePe • Paytm • BHIM",
                 style: TextStyle(fontSize: 13, color: Colors.grey),
               ),
             ),
-            const SizedBox(height: 10),
 
-            const Center(
-              child: Text(
-                "Complete the payment and tap Confirm",
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+            const SizedBox(height: 20),
+
+            _sectionTitle("Deliver To"),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
               ),
+              child: Text(widget.address),
             ),
 
             const Spacer(),
@@ -111,7 +116,7 @@ class _PaymentPageState extends State<PaymentPage> {
               child: ElevatedButton(
                 onPressed: _loading ? null : _success,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE16417),
+                  backgroundColor: const Color(0xFFE16417), // ✅ orange
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -130,6 +135,73 @@ class _PaymentPageState extends State<PaymentPage> {
         ),
       ),
     );
+  }
+
+  // 🔥 THIS IS WHERE STOCK MUST REDUCE
+  Future<void> _success() async {
+    final user = authService.currentUser;
+    if (user == null) {
+      _snack("Please login first.");
+      return;
+    }
+
+    final artworkId = (widget.artwork["id"] ?? "").toString().trim();
+    if (artworkId.isEmpty) {
+      _snack("Artwork ID missing.");
+      return;
+    }
+
+    final title = (widget.artwork["title"] ?? "Artwork").toString();
+    final priceStr = (widget.artwork["price"] ?? "0").toString();
+    final imageUrl =
+        (widget.artwork["imageUrl"] ?? widget.artwork["image"] ?? "").toString();
+
+    final int price =
+        int.tryParse(priceStr.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+    if (price <= 0) {
+      _snack("Invalid artwork price.");
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      // 1️⃣ Create order
+      final String orderId = await backend.createOrder(
+        userId: user.uid,
+        artworkId: artworkId,
+        artTitle: title,
+        price: price,
+        quantity: 1,
+        address: widget.address,
+        addressId: widget.addressId,
+        addressSnapshot: widget.addressSnapshot,
+        imageUrl: imageUrl.isEmpty ? null : imageUrl,
+        customerName: user.name,
+        customerEmail: user.email,
+      );
+
+      // 2️⃣ 🔥 REDUCE STOCK
+      await backend.reduceStockAfterOrder(
+        artworkId: artworkId,
+        qty: 1,
+      );
+
+      if (!mounted) return;
+
+      // 3️⃣ Go to success page
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentSuccessPage(orderId: orderId),
+        ),
+      );
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Widget _sectionTitle(String text) {
@@ -160,72 +232,6 @@ class _PaymentPageState extends State<PaymentPage> {
         ],
       ),
     );
-  }
-
-  Future<void> _success() async {
-    final user = authService.currentUser;
-    if (user == null) {
-      _snack("Please login first.");
-      return;
-    }
-
-    final artworkId = (widget.artwork["id"] ?? "").toString().trim();
-    if (artworkId.isEmpty) {
-      _snack("Artwork ID missing. Add an 'id' field to each artwork.");
-      return;
-    }
-
-    final title = (widget.artwork["title"] ?? "Artwork").toString();
-    final priceStr = (widget.artwork["price"] ?? "0").toString();
-
-    // ✅ Support both "imagePath" and old "image"
-    final imagePath = widget.artwork["imagePath"]?.toString() ??
-        widget.artwork["image"]?.toString();
-
-    // ✅ Convert price safely to int
-    final int price =
-        int.tryParse(priceStr.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-
-    if (price <= 0) {
-      _snack("Invalid artwork price.");
-      return;
-    }
-
-    setState(() => _loading = true);
-
-    try {
-      // ❌ IMPORTANT:
-      // If you moved to Firestore, DON'T do local reduceStock.
-      // It doesn't update Firestore, so your stock will be wrong.
-      // If you still use ArtworkData locally, uncomment and import it.
-      //
-      // ArtworkData.reduceStock(artworkId);
-
-      final String orderId = await backend.createOrder(
-        userId: user.uid, // ✅ REQUIRED by your backend_service.dart
-        artworkId: artworkId,
-        artTitle: title,
-        price: price,
-        quantity: 1,
-        address: widget.address,
-        imagePath: imagePath,
-        customerName: user.name,
-        customerEmail: user.email,
-      );
-
-      if (!mounted) return;
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PaymentSuccessPage(orderId: orderId),
-        ),
-      );
-    } catch (e) {
-      _snack(e.toString().replaceFirst('Exception: ', ''));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
   }
 
   void _snack(String msg) {

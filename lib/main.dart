@@ -10,6 +10,9 @@ import 'package:artiva/auth/register_screen.dart';
 import 'package:artiva/admin/admin_dashboard.dart';
 import 'package:artiva/customer/home_screen.dart';
 
+import 'package:artiva/auth/splash_screen.dart';
+import 'package:artiva/auth/onboarding_screen.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -17,10 +20,6 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // ✅ Force WelcomeScreen every time app starts
-  await authService.logout();
-
-  // ✅ Start listener AFTER logout
   authService.startAuthListener();
 
   runApp(const ArtivaApp());
@@ -33,11 +32,10 @@ class ArtivaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-
-      // ✅ Always start here
-      home: const WelcomeScreen(),
-
+      home: const SplashScreen(),
       routes: {
+        '/splash': (_) => const SplashScreen(),
+        '/onboarding': (_) => const OnboardingScreen(),
         '/welcome': (_) => const WelcomeScreen(),
         '/login': (_) => const LoginScreen(),
         '/register': (_) => const RegisterScreen(),

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'package:artiva/widgets/customer_scaffold.dart';
@@ -24,9 +23,9 @@ class ExhibitionDetailPage extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: SizedBox(
-                width: double.infinity, // ✅ force full width
+                width: double.infinity,
                 height: 220,
-                child: _image(exhibition.imagePath),
+                child: _image(exhibition.imageUrl),
               ),
             ),
             const SizedBox(height: 16),
@@ -137,37 +136,38 @@ class ExhibitionDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _image(String path) {
-    final p = (path).trim();
-
+  Widget _image(String urlOrAsset) {
+    final p = urlOrAsset.trim();
     if (p.isEmpty) return _imgError();
 
-    // ✅ assets
+    // assets support (optional)
     if (p.startsWith("assets/")) {
       return Image.asset(
         p,
         width: double.infinity,
         height: 220,
         fit: BoxFit.cover,
-        alignment: Alignment.center, // ✅ center
         errorBuilder: (_, __, ___) => _imgError(),
       );
     }
 
-    // ✅ file path: check exists first
-    final file = File(p);
-    if (!file.existsSync()) {
-      return _imgError(text: "Image file not found");
+    // ✅ Cloudinary / network url
+    if (p.startsWith("http")) {
+      return Image.network(
+        p,
+        width: double.infinity,
+        height: 220,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (_, __, ___) => _imgError(),
+      );
     }
 
-    return Image.file(
-      file,
-      width: double.infinity,
-      height: 220,
-      fit: BoxFit.cover,
-      alignment: Alignment.center, // ✅ center
-      errorBuilder: (_, __, ___) => _imgError(),
-    );
+    // if someone accidentally stored local path again
+    return _imgError(text: "Invalid image url (not http/asset)");
   }
 
   Widget _imgError({String text = "Image not available"}) {

@@ -36,7 +36,6 @@ class AuthService {
     final DocumentReference<Map<String, dynamic>> ref =
         _db.collection('users').doc(user.uid);
 
-    // Keep snapshot untyped (avoids version mismatch issues)
     final DocumentSnapshot snap = await ref.get();
 
     // If user doc not exists -> create as normal user
@@ -47,6 +46,7 @@ class AuthService {
         email: user.email ?? '',
         phone: '',
         role: Role.user,
+        photoUrl: "", // ✅ ADD
       );
 
       await ref.set({
@@ -54,6 +54,7 @@ class AuthService {
         'email': newUser.email,
         'phone': newUser.phone,
         'role': 'user',
+        'photoUrl': newUser.photoUrl, // ✅ ADD
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -71,18 +72,17 @@ class AuthService {
       email: (data['email'] ?? user.email ?? '').toString(),
       phone: (data['phone'] ?? '').toString(),
       role: roleStr == 'admin' ? Role.admin : Role.user,
+      photoUrl: (data['photoUrl'] ?? '').toString(), // ✅ ADD
     );
   }
 
-  /// ✅ This is the missing method your LoginScreen is calling.
-  /// It forces Firestore role = admin for a specific admin email.
+  /// Forces Firestore role = admin for a specific admin email.
   Future<void> ensureAdminRole(String adminEmail) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception("Not logged in.");
 
     final email = (user.email ?? "").trim().toLowerCase();
     if (email != adminEmail.trim().toLowerCase()) {
-      // Not the admin account -> don't change anything
       return;
     }
 
@@ -96,7 +96,6 @@ class AuthService {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
-    // refresh local user model so routing uses admin immediately
     userNotifier.value = await _getOrCreateUserDoc(user);
   }
 
@@ -125,6 +124,7 @@ class AuthService {
         'email': email.trim(),
         'phone': phone.trim(),
         'role': 'user',
+        'photoUrl': '', // ✅ ADD
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -134,6 +134,7 @@ class AuthService {
         email: email.trim(),
         phone: phone.trim(),
         role: Role.user,
+        photoUrl: "", // ✅ ADD
       );
 
       userNotifier.value = appUser;
@@ -185,6 +186,23 @@ class AuthService {
     });
 
     final updated = await _getOrCreateUserDoc(user);
+    userNotifier.value = updated;
+    return updated;
+  }
+
+  // ✅ ADD THIS METHOD (this fixes your ProfileSettingsPage errors)
+  Future<AppUser> updateProfilePhoto({required String photoUrl}) async {
+    final fbUser = _auth.currentUser;
+    if (fbUser == null) throw Exception('Not logged in.');
+
+    final ref = _db.collection('users').doc(fbUser.uid);
+
+    await ref.update({
+      'photoUrl': photoUrl.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final updated = await _getOrCreateUserDoc(fbUser);
     userNotifier.value = updated;
     return updated;
   }

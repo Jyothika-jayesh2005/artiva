@@ -8,6 +8,7 @@ class AppUser {
   final String email;
   final String phone;
   final Role role;
+  final String photoUrl;
 
   AppUser({
     required this.uid,
@@ -15,7 +16,48 @@ class AppUser {
     required this.email,
     required this.phone,
     required this.role,
+    this.photoUrl = "",
   });
+
+  AppUser copyWith({
+    String? name,
+    String? phone,
+    Role? role,
+    String? photoUrl,
+  }) {
+    return AppUser(
+      uid: uid,
+      name: name ?? this.name,
+      email: email,
+      phone: phone ?? this.phone,
+      role: role ?? this.role,
+      photoUrl: photoUrl ?? this.photoUrl,
+    );
+  }
+
+  factory AppUser.fromMap(String uid, Map<String, dynamic> map) {
+    final roleStr = (map["role"] ?? "user").toString();
+    final role = roleStr == "admin" ? Role.admin : Role.user;
+
+    return AppUser(
+      uid: uid,
+      name: (map["name"] ?? "").toString(),
+      email: (map["email"] ?? "").toString(),
+      phone: (map["phone"] ?? "").toString(),
+      role: role,
+      photoUrl: (map["photoUrl"] ?? "").toString(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      "name": name,
+      "email": email,
+      "phone": phone,
+      "role": role == Role.admin ? "admin" : "user",
+      "photoUrl": photoUrl,
+    };
+  }
 }
 
 // ---------------- EXHIBITION ----------------
@@ -29,7 +71,7 @@ class Exhibition {
   final int totalSeats;
   final int bookedSeats;
   final int pricePerSeat;
-  final String imagePath;
+  final String imageUrl;
   final bool isArchived;
 
   Exhibition({
@@ -41,11 +83,41 @@ class Exhibition {
     required this.totalSeats,
     required this.bookedSeats,
     required this.pricePerSeat,
-    required this.imagePath,
-    required this.isArchived,
+    required this.imageUrl,
+    this.isArchived = false,
   });
 
   int get remainingSeats => totalSeats - bookedSeats;
+
+  factory Exhibition.fromMap(Map<String, dynamic> map) {
+    return Exhibition(
+      id: (map["id"] ?? "").toString(),
+      title: (map["title"] ?? "").toString(),
+      venue: (map["venue"] ?? "").toString(),
+      dateTime: _parseDateTime(map["dateTime"]),
+      description: (map["description"] ?? "").toString(),
+      totalSeats: _toInt(map["totalSeats"]),
+      bookedSeats: _toInt(map["bookedSeats"]),
+      pricePerSeat: _toInt(map["pricePerSeat"]),
+      imageUrl: (map["imageUrl"] ?? map["image"] ?? "").toString(),
+      isArchived: map["isArchived"] == true,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      "id": id,
+      "title": title,
+      "venue": venue,
+      "dateTime": dateTime.toIso8601String(),
+      "description": description,
+      "totalSeats": totalSeats,
+      "bookedSeats": bookedSeats,
+      "pricePerSeat": pricePerSeat,
+      "imageUrl": imageUrl,
+      "isArchived": isArchived,
+    };
+  }
 }
 
 // ---------------- EXHIBITION BOOKING ----------------
@@ -76,35 +148,30 @@ class ExhibitionBooking {
   });
 }
 
-// ---------------- ARTWORK ORDER ----------------
+// ---------------- ORDERS ----------------
 
-enum OrderStatus { pending, shipped, delivered, cancelled }
+enum OrderStatus { pending, shipped, delivered, }
 
 class ArtworkOrder {
   final String id;
-
-  // required for relating order -> artwork
   final String? artId;
-
   final String artTitle;
   final String customerName;
   final String customerEmail;
-
   final int quantity;
   final int price;
-
-  // ✅ NEW fields you are trying to use
+  final String? imageUrl;
   final String? address;
-  final String? imagePath;
-  final String? size; // size in cm (example)
-  final String? inch; // size in inch (example)
-
+  final Map<String, dynamic>? addressSnapshot;
+  final String? addressId;
+  final String? sizeCm;
+  final String? sizeIn;
   final OrderStatus status;
   final DateTime orderedAt;
-
   final int? rating;
   final String? review;
   final DateTime? ratedAt;
+  final bool ratingLocked;
 
   ArtworkOrder({
     required this.id,
@@ -114,18 +181,50 @@ class ArtworkOrder {
     required this.customerEmail,
     required this.quantity,
     required this.price,
-
+    this.imageUrl,
     this.address,
-    this.imagePath,
-    this.size,
-    this.inch,
-
+    this.addressSnapshot,
+    this.addressId,
+    this.sizeCm,
+    this.sizeIn,
     required this.status,
     required this.orderedAt,
     this.rating,
     this.review,
     this.ratedAt,
+    this.ratingLocked = false,
   });
+
+  // ✅ THIS IS THE MISSING PIECE (CRITICAL)
+  ArtworkOrder copyWith({
+    int? rating,
+    String? review,
+    DateTime? ratedAt,
+    bool? ratingLocked,
+    OrderStatus? status,
+  }) {
+    return ArtworkOrder(
+      id: id,
+      artId: artId,
+      artTitle: artTitle,
+      customerName: customerName,
+      customerEmail: customerEmail,
+      quantity: quantity,
+      price: price,
+      imageUrl: imageUrl,
+      address: address,
+      addressSnapshot: addressSnapshot,
+      addressId: addressId,
+      sizeCm: sizeCm,
+      sizeIn: sizeIn,
+      status: status ?? this.status,
+      orderedAt: orderedAt,
+      rating: rating ?? this.rating,
+      review: review ?? this.review,
+      ratedAt: ratedAt ?? this.ratedAt,
+      ratingLocked: ratingLocked ?? this.ratingLocked,
+    );
+  }
 }
 
 // ---------------- ARTWORK RATING SUMMARY ----------------
@@ -134,10 +233,28 @@ class ArtworkRatingSummary {
   final double avg;
   final int count;
 
-  const ArtworkRatingSummary({
-    required this.avg,
-    required this.count,
-  });
+  const ArtworkRatingSummary({required this.avg, required this.count});
 
   String get label => avg == 0 ? "—" : avg.toStringAsFixed(1);
+}
+
+// ---------------- HELPERS ----------------
+
+int _toInt(dynamic v) {
+  if (v is int) return v;
+  if (v is double) return v.toInt();
+  if (v is String) return int.tryParse(v.trim()) ?? 0;
+  return 0;
+}
+
+DateTime _parseDateTime(dynamic v) {
+  if (v is DateTime) return v;
+  if (v is String) {
+    final dt = DateTime.tryParse(v);
+    if (dt != null) return dt;
+  }
+  try {
+    return v.toDate() as DateTime;
+  } catch (_) {}
+  return DateTime.now();
 }

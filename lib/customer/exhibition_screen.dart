@@ -1,8 +1,7 @@
-import 'dart:io'; // ✅ for File()
 import 'package:flutter/material.dart';
 
 import 'package:artiva/widgets/customer_scaffold.dart';
-import 'package:artiva/backend/backend_service.dart'; // ✅ use service directly
+import 'package:artiva/backend/backend_service.dart';
 import 'package:artiva/backend/models.dart';
 
 import 'exhibition_detail_page.dart';
@@ -15,10 +14,10 @@ class ExhibitionScreen extends StatefulWidget {
 }
 
 class _ExhibitionScreenState extends State<ExhibitionScreen> {
-  final BackendService backend = BackendService(); // ✅ define backend
+  final BackendService backend = BackendService();
 
   Future<List<Exhibition>> _load() async {
-    return backend.getExhibitions(); // active only (default includeArchived=false)
+    return backend.getExhibitions(); // active only
   }
 
   @override
@@ -32,6 +31,7 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+
           if (snap.hasError) {
             return Center(
               child: Text(
@@ -66,7 +66,7 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
             builder: (_) => ExhibitionDetailPage(exhibition: e),
           ),
         );
-        if (mounted) setState(() {}); // refresh seats after booking
+        if (mounted) setState(() {}); // refresh after booking
       },
       child: Card(
         margin: const EdgeInsets.only(bottom: 14),
@@ -77,7 +77,7 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: _image(e.imagePath),
+                child: _image(e.imageUrl),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -117,33 +117,59 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
     );
   }
 
-  Widget _image(String path) {
-    if (path.startsWith("assets/")) {
+  Widget _image(String urlOrAsset) {
+    final p = urlOrAsset.trim();
+
+    if (p.isEmpty) {
+      return _imgErr();
+    }
+
+    // assets support (optional)
+    if (p.startsWith("assets/")) {
       return Image.asset(
-        path,
+        p,
         width: 90,
         height: 110,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-          width: 90,
-          height: 110,
-          color: Colors.grey.shade200,
-          child: const Icon(Icons.image_not_supported),
-        ),
+        errorBuilder: (_, __, ___) => _imgErr(),
       );
     }
 
-    // ✅ file path (picked image)
-    return Image.file(
-      File(path),
-      width: 90,
-      height: 110,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
+    // ✅ Cloudinary / network
+    if (p.startsWith("http")) {
+      return Image.network(
+        p,
         width: 90,
         height: 110,
-        color: Colors.grey.shade200,
-        child: const Icon(Icons.image_not_supported),
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const SizedBox(
+            width: 90,
+            height: 110,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        },
+        errorBuilder: (_, __, ___) => _imgErr(),
+      );
+    }
+
+    return _imgErr(text: "Invalid image");
+  }
+
+  Widget _imgErr({String text = "No image"}) {
+    return Container(
+      width: 90,
+      height: 110,
+      color: Colors.grey.shade200,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.image_not_supported),
+          const SizedBox(height: 4),
+          Text(text, style: const TextStyle(fontSize: 11)),
+        ],
       ),
     );
   }

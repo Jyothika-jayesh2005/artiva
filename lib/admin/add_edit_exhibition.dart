@@ -1,10 +1,12 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:artiva/widgets/admin_scaffold.dart';
 import 'package:artiva/backend/models.dart';
-import 'package:artiva/backend/backend_service.dart'; // ✅ REQUIRED
+import 'package:artiva/backend/backend_service.dart';
+import 'package:artiva/services/cloudinary_service.dart';
 
 class AddEditExhibitionPage extends StatefulWidget {
   final Exhibition? existing; // null = add, not null = edit
@@ -18,7 +20,7 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
   final _formKey = GlobalKey<FormState>();
   final _picker = ImagePicker();
 
-  final BackendService backend = BackendService(); // ✅ DEFINE backend
+  final BackendService backend = BackendService();
 
   final _titleCtrl = TextEditingController();
   final _venueCtrl = TextEditingController();
@@ -27,7 +29,12 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
   final _priceCtrl = TextEditingController();
 
   DateTime? _selectedDateTime;
-  String? _imagePath;
+
+  // ✅ NEW
+  String? _localImagePath; // picked image (phone path)
+  String? _imageUrl; // cloudinary url (saved)
+
+  bool _saving = false;
 
   bool get isEdit => widget.existing != null;
 
@@ -43,11 +50,14 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
       _totalSeatsCtrl.text = ex.totalSeats.toString();
       _priceCtrl.text = ex.pricePerSeat.toString();
       _selectedDateTime = ex.dateTime;
-      _imagePath = ex.imagePath;
+
+      _imageUrl = ex.imageUrl;
+      _localImagePath = null;
     } else {
       _selectedDateTime = DateTime.now().add(const Duration(days: 1));
       _priceCtrl.text = "100";
-      _imagePath = null;
+      _imageUrl = null;
+      _localImagePath = null;
     }
   }
 
@@ -62,8 +72,12 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
   }
 
   Future<void> _pickImage() async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) setState(() => _imagePath = picked.path);
+    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked != null) {
+      setState(() {
+        _localImagePath = picked.path; // new picked file
+      });
+    }
   }
 
   @override
@@ -73,10 +87,10 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
       showBack: true,
       actions: [
         TextButton(
-          onPressed: _save,
-          child: const Text(
-            "SAVE",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          onPressed: _saving ? null : _save,
+          child: Text(
+            _saving ? "SAVING..." : "SAVE",
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
       ],
@@ -87,7 +101,7 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
           child: ListView(
             children: [
               GestureDetector(
-                onTap: _pickImage,
+                onTap: _saving ? null : _pickImage,
                 child: Container(
                   height: 170,
                   width: double.infinity,
@@ -96,18 +110,11 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                     border: Border.all(color: Colors.grey),
                     color: Colors.white,
                   ),
-                  child: _imagePath == null
-                      ? const Center(
-                          child: Text("Tap to upload exhibition image"),
-                        )
+                  child: (_localImagePath == null && (_imageUrl == null || _imageUrl!.isEmpty))
+                      ? const Center(child: Text("Tap to upload exhibition image"))
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(14),
-                          child: _imagePath!.startsWith("assets/")
-                              ? Image.asset(_imagePath!, fit: BoxFit.cover)
-                              : Image.file(
-                                  File(_imagePath!),
-                                  fit: BoxFit.cover,
-                                ),
+                          child: _previewImage(),
                         ),
                 ),
               ),
@@ -117,8 +124,7 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                 controller: _titleCtrl,
                 label: "Exhibition Title",
                 icon: Icons.title,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? "Title required" : null,
+                validator: (v) => (v == null || v.trim().isEmpty) ? "Title required" : null,
               ),
               const SizedBox(height: 12),
 
@@ -126,8 +132,7 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                 controller: _venueCtrl,
                 label: "Venue / Location",
                 icon: Icons.location_on,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? "Venue required" : null,
+                validator: (v) => (v == null || v.trim().isEmpty) ? "Venue required" : null,
               ),
               const SizedBox(height: 12),
 
@@ -136,10 +141,7 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                 label: "Description",
                 icon: Icons.description,
                 maxLines: 3,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty)
-                        ? "Description required"
-                        : null,
+                validator: (v) => (v == null || v.trim().isEmpty) ? "Description required" : null,
               ),
               const SizedBox(height: 12),
 
@@ -149,10 +151,8 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                 icon: Icons.event_seat,
                 keyboardType: TextInputType.number,
                 validator: (v) {
-                  final n = int.tryParse(v ?? "");
-                  if (n == null || n <= 0) {
-                    return "Enter a valid seat count";
-                  }
+                  final n = int.tryParse((v ?? "").trim());
+                  if (n == null || n <= 0) return "Enter a valid seat count";
                   return null;
                 },
               ),
@@ -164,42 +164,69 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                 icon: Icons.currency_rupee,
                 keyboardType: TextInputType.number,
                 validator: (v) {
-                  final p = int.tryParse(v ?? "");
-                  if (p == null || p <= 0) {
-                    return "Enter a valid price";
-                  }
+                  final p = int.tryParse((v ?? "").trim());
+                  if (p == null || p <= 0) return "Enter a valid price";
                   return null;
                 },
               ),
               const SizedBox(height: 16),
 
               ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 tileColor: Colors.white,
                 leading: const Icon(Icons.calendar_month),
                 title: Text(
-                  _selectedDateTime == null
-                      ? "Select Date & Time"
-                      : _formatDateTime(_selectedDateTime!),
+                  _selectedDateTime == null ? "Select Date & Time" : _formatDateTime(_selectedDateTime!),
                 ),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: _pickDateTime,
+                onTap: _saving ? null : _pickDateTime,
               ),
 
               const SizedBox(height: 20),
 
               ElevatedButton.icon(
-                onPressed: _save,
+                onPressed: _saving ? null : _save,
                 icon: const Icon(Icons.save),
-                label:
-                    Text(isEdit ? "Update Exhibition" : "Add Exhibition"),
+                label: Text(isEdit ? "Update Exhibition" : "Add Exhibition"),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _previewImage() {
+    // show newly picked file first
+    if (_localImagePath != null) {
+      return Image.file(
+        File(_localImagePath!),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _fallback(),
+      );
+    }
+
+    // else show saved cloudinary url
+    if (_imageUrl != null && _imageUrl!.startsWith("http")) {
+      return Image.network(
+        _imageUrl!,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (_, __, ___) => _fallback(),
+      );
+    }
+
+    return _fallback();
+  }
+
+  Widget _fallback() {
+    return Container(
+      color: Colors.grey.shade200,
+      alignment: Alignment.center,
+      child: const Icon(Icons.image_not_supported),
     );
   }
 
@@ -221,9 +248,7 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
         prefixIcon: Icon(icon),
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }
@@ -246,28 +271,14 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
     if (time == null) return;
 
     setState(() {
-      _selectedDateTime = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
+      _selectedDateTime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
     });
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDateTime == null) return;
-
-    if (_imagePath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please upload an exhibition image"),
-        ),
-      );
-      return;
-    }
 
     final totalSeats = int.parse(_totalSeatsCtrl.text.trim());
     final pricePerSeat = int.parse(_priceCtrl.text.trim());
@@ -276,47 +287,58 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
     final bookedSeats = old?.bookedSeats ?? 0;
 
     if (totalSeats < bookedSeats) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text("Total seats cannot be less than booked ($bookedSeats)"),
-        ),
-      );
+      _snack("Total seats cannot be less than booked ($bookedSeats)");
       return;
     }
 
-    final ex = Exhibition(
-      id: old?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      title: _titleCtrl.text.trim(),
-      venue: _venueCtrl.text.trim(),
-      dateTime: _selectedDateTime!,
-      description: _descCtrl.text.trim(),
-      totalSeats: totalSeats,
-      bookedSeats: bookedSeats,
-      pricePerSeat: pricePerSeat,
-      imagePath: _imagePath!,
-      isArchived: old?.isArchived ?? false,
-    );
+    setState(() => _saving = true);
 
     try {
-      await backend.upsertExhibition(ex); // ✅ NOW VALID
+      // ✅ Upload if admin picked a new image
+      String finalImageUrl = (_imageUrl ?? "").trim();
+
+      if (_localImagePath != null && _localImagePath!.trim().isNotEmpty) {
+        finalImageUrl = await CloudinaryService.uploadExhibitionImage(
+          file: File(_localImagePath!),
+        );
+      }
+
+      if (finalImageUrl.isEmpty) {
+        _snack("Please upload an exhibition image");
+        return;
+      }
+
+      final ex = Exhibition(
+        id: old?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        title: _titleCtrl.text.trim(),
+        venue: _venueCtrl.text.trim(),
+        dateTime: _selectedDateTime!,
+        description: _descCtrl.text.trim(),
+        totalSeats: totalSeats,
+        bookedSeats: bookedSeats,
+        pricePerSeat: pricePerSeat,
+        imageUrl: finalImageUrl,
+        isArchived: old?.isArchived ?? false,
+      );
+
+      await backend.upsertExhibition(ex);
+
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString().replaceFirst('Exception: ', ''),
-          ),
-        ),
-      );
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  "
-        "${two(dt.hour)}:${two(dt.minute)}";
+    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  ${two(dt.hour)}:${two(dt.minute)}";
   }
 }

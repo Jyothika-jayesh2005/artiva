@@ -58,8 +58,13 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
               final int sold = _toInt(art["soldQuantity"]);
               final int remaining = total - sold;
 
-              final String imagePath =
-                  (art["imagePath"] ?? art["image"] ?? "").toString();
+              // ✅ FIX: Cloudinary images are saved in imageUrl
+              final String image = (art["imageUrl"] ??
+                      art["imagePath"] ??
+                      art["image"] ??
+                      "")
+                  .toString()
+                  .trim();
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 14),
@@ -67,12 +72,17 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: ListTile(
-                  leading: _thumb(imagePath),
-                  title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  leading: _thumb(image),
+                  title: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   subtitle: Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      remaining > 0 ? "In stock ($remaining left)" : "Out of stock",
+                      remaining > 0
+                          ? "In stock ($remaining left)"
+                          : "Out of stock",
                       style: TextStyle(
                         color: remaining > 0 ? Colors.green : Colors.red,
                         fontWeight: FontWeight.w600,
@@ -109,10 +119,36 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
   }
 
   Widget _thumb(String path) {
-    if (path.isEmpty) {
-      return _imgErr();
+    if (path.isEmpty) return _imgErr();
+
+    // ✅ Cloudinary / network
+    if (path.startsWith("http")) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          path,
+          width: 55,
+          height: 55,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return Container(
+              width: 55,
+              height: 55,
+              alignment: Alignment.center,
+              child: const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            );
+          },
+          errorBuilder: (_, __, ___) => _imgErr(),
+        ),
+      );
     }
 
+    // Assets fallback (old)
     if (path.startsWith("assets/")) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
@@ -126,6 +162,7 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
       );
     }
 
+    // Local file fallback (only if you still store local paths)
     final f = File(path);
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
@@ -144,6 +181,7 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
       width: 55,
       height: 55,
       color: Colors.grey.shade200,
+      alignment: Alignment.center,
       child: const Icon(Icons.image_not_supported),
     );
   }

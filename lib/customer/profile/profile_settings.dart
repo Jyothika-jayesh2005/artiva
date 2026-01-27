@@ -1,7 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/auth/auth_service.dart';
+
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 
 class ProfileSettingsPage extends StatefulWidget {
   const ProfileSettingsPage({super.key});
@@ -17,6 +23,13 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
 
   bool _saving = false;
 
+  File? _pickedImageFile;
+  String _photoUrl = "";
+
+  // ✅ FIXED: use your real Cloudinary config
+  static const String _cloudName = "dblfdal0u";
+  static const String _uploadPreset = "profiles_unsigned"; // <-- create this preset
+
   @override
   void initState() {
     super.initState();
@@ -25,6 +38,8 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     _nameController = TextEditingController(text: user?.name ?? "");
     _emailController = TextEditingController(text: user?.email ?? "");
     _phoneController = TextEditingController(text: user?.phone ?? "");
+
+    _photoUrl = (user?.photoUrl ?? "").trim();
   }
 
   @override
@@ -33,6 +48,64 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     _emailController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickPhoto() async {
+    final user = authService.currentUser;
+    if (user == null) {
+      _toast("Please login first.");
+      return;
+    }
+
+    try {
+      final picker = ImagePicker();
+      final XFile? x = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+      if (x == null) return;
+
+      setState(() {
+        _pickedImageFile = File(x.path);
+      });
+    } catch (e) {
+      _toast("Failed to pick image: $e");
+    }
+  }
+
+  Future<String?> _uploadToCloudinary(File file) async {
+    try {
+      final uri = Uri.parse(
+        "https://api.cloudinary.com/v1_1/$_cloudName/image/upload",
+      );
+
+      final req = http.MultipartRequest("POST", uri);
+      req.fields["upload_preset"] = _uploadPreset;
+      req.fields["folder"] = "profiles"; // keep clean
+
+      req.files.add(await http.MultipartFile.fromPath("file", file.path));
+
+      final res = await req.send();
+      final body = await res.stream.bytesToString();
+
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        _toast("Cloudinary upload failed (${res.statusCode}): $body");
+        return null;
+      }
+
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      final secureUrl = (json["secure_url"] ?? "").toString().trim();
+
+      if (secureUrl.isEmpty) {
+        _toast("Cloudinary did not return secure_url.");
+        return null;
+      }
+
+      return secureUrl;
+    } catch (e) {
+      _toast("Cloudinary upload error: $e");
+      return null;
+    }
   }
 
   Future<void> _save() async {
@@ -60,7 +133,19 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     setState(() => _saving = true);
 
     try {
+      String? newPhotoUrl;
+      if (_pickedImageFile != null) {
+        newPhotoUrl = await _uploadToCloudinary(_pickedImageFile!);
+        if (newPhotoUrl == null) return;
+      }
+
       await authService.updateProfile(name: name, phone: phone);
+
+      if (newPhotoUrl != null && newPhotoUrl.isNotEmpty) {
+        await authService.updateProfilePhoto(photoUrl: newPhotoUrl);
+        _photoUrl = newPhotoUrl;
+        _pickedImageFile = null;
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -81,6 +166,10 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ImageProvider? previewImageProvider = _pickedImageFile != null
+        ? FileImage(_pickedImageFile!)
+        : (_photoUrl.isNotEmpty ? NetworkImage(_photoUrl) : null);
+
     return CustomerScaffold(
       currentIndex: -1,
       title: "Profile Settings",
@@ -93,6 +182,31 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
         ),
         child: Column(
           children: [
+            Center(
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 46,
+                    backgroundColor: Colors.white,
+                    backgroundImage: previewImageProvider,
+                    child: previewImageProvider == null
+                        ? const Icon(
+                            Icons.person,
+                            size: 46,
+                            color: Color(0xFFE16417),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _saving ? null : _pickPhoto,
+                    icon: const Icon(Icons.photo_camera_outlined),
+                    label: const Text("Change Photo"),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
             _field("Name", _nameController, Icons.person, true),
             _field("Email", _emailController, Icons.email, false),
             _field(

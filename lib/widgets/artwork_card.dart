@@ -34,6 +34,14 @@ class ArtworkCard extends StatelessWidget {
         ? (artwork["ratingCount"] as num).toInt()
         : int.tryParse((artwork["ratingCount"] ?? "").toString()) ?? 0;
 
+    // ✅ Get image from any key (Cloudinary uses imageUrl)
+    final String image = (artwork["imageUrl"] ??
+            artwork["image"] ??
+            artwork["imagePath"] ??
+            "")
+        .toString()
+        .trim();
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -63,7 +71,7 @@ class ArtworkCard extends StatelessWidget {
                 SizedBox(
                   height: imageH,
                   width: double.infinity,
-                  child: _image(artwork["image"]),
+                  child: _image(image),
                 ),
                 SizedBox(
                   height: textAreaH,
@@ -95,7 +103,6 @@ class ArtworkCard extends StatelessWidget {
                         ),
                         const Spacer(),
 
-                        // ✅ Price left, Rating right (rating does NOT take extra space)
                         Row(
                           children: [
                             Expanded(
@@ -111,7 +118,6 @@ class ArtworkCard extends StatelessWidget {
                               ),
                             ),
 
-                            // ✅ ALWAYS show rating UI so you can see the change
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -158,26 +164,26 @@ class ArtworkCard extends StatelessWidget {
     );
   }
 
-  Widget _image(dynamic img) {
-    if (img is String && img.isNotEmpty) {
-      if (img.startsWith("assets/")) {
-        return Image.asset(
-          img,
-          fit: BoxFit.cover,
-          alignment: Alignment.center,
-          errorBuilder: (_, __, ___) => _fallback(),
-        );
-      }
-      return Image.file(
-        File(img),
+  Widget _image(String img) {
+    if (img.isEmpty) return _fallback();
+
+    // ✅ Cloudinary / network url
+    if (img.startsWith("http")) {
+      return Image.network(
+        img,
         fit: BoxFit.cover,
         alignment: Alignment.center,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
         errorBuilder: (_, __, ___) => _fallback(),
       );
     }
 
-    if (img is File) {
-      return Image.file(
+    // ✅ Assets
+    if (img.startsWith("assets/")) {
+      return Image.asset(
         img,
         fit: BoxFit.cover,
         alignment: Alignment.center,
@@ -185,7 +191,13 @@ class ArtworkCard extends StatelessWidget {
       );
     }
 
-    return _fallback();
+    // ✅ Local file (only if you still have old local paths)
+    return Image.file(
+      File(img),
+      fit: BoxFit.cover,
+      alignment: Alignment.center,
+      errorBuilder: (_, __, ___) => _fallback(),
+    );
   }
 
   Widget _fallback() {

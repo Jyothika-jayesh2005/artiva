@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/admin_scaffold.dart';
 
-import 'package:artiva/backend/backend_service.dart'; // ✅ FIXED
+import 'package:artiva/backend/backend_service.dart';
 import 'package:artiva/backend/models.dart';
 
 class BookingOverviewPage extends StatefulWidget {
@@ -15,7 +15,6 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tab;
 
-  // ✅ DEFINE BACKEND
   final BackendService backend = BackendService();
 
   @override
@@ -139,6 +138,16 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
 
   // ---------------- ARTWORK ORDERS ----------------
 
+  List<OrderStatus> _allowedOrderStatuses() {
+    return OrderStatus.values;
+  }
+
+  OrderStatus _safeDropdownValue(OrderStatus current) {
+    final allowed = _allowedOrderStatuses();
+    if (allowed.contains(current)) return current;
+    return allowed.isNotEmpty ? allowed.first : current;
+  }
+
   Widget _artworkOrdersTab() {
     return FutureBuilder<List<ArtworkOrder>>(
       future: backend.getAllOrders(),
@@ -169,8 +178,8 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
             itemBuilder: (_, i) {
               final o = orders[i];
 
-              final hasReview =
-                  (o.rating != null) || ((o.review ?? "").trim().isNotEmpty);
+              final addressText = _formatOrderAddress(o);
+              final allowedStatuses = _allowedOrderStatuses();
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -199,9 +208,9 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
                           "Ordered: ${_formatDateTime(o.orderedAt)}",
                         ),
                         trailing: DropdownButton<OrderStatus>(
-                          value: o.status,
+                          value: _safeDropdownValue(o.status),
                           underline: const SizedBox(),
-                          items: OrderStatus.values
+                          items: allowedStatuses
                               .map(
                                 (s) => DropdownMenuItem(
                                   value: s,
@@ -225,50 +234,21 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
                         ),
                       ),
 
-                      if (hasReview) ...[
-                        const Divider(),
-                        Row(
-                          children: [
-                            const Icon(Icons.star, size: 18),
-                            const SizedBox(width: 6),
-                            Text(
-                              o.rating == null
-                                  ? "No rating"
-                                  : "${o.rating}/5",
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            const Spacer(),
-                            if (o.ratedAt != null)
-                              Text(
-                                _formatDateTime(o.ratedAt!),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                          ],
-                        ),
-                        if ((o.review ?? "").trim().isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            "\"${o.review!.trim()}\"",
-                            style: const TextStyle(
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () async =>
-                                await _confirmDeleteReview(o),
-                            icon:
-                                const Icon(Icons.delete, color: Colors.red),
-                            label: const Text(
-                              "Delete Review",
-                              style: TextStyle(color: Colors.red),
-                            ),
+                      const Divider(),
+                      const Text(
+                        "Delivery Address",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(addressText),
+
+                      if ((o.addressId ?? "").trim().isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          "Address ID: ${o.addressId}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
                           ),
                         ),
                       ],
@@ -285,48 +265,42 @@ class _BookingOverviewPageState extends State<BookingOverviewPage>
 
   // ---------------- HELPERS ----------------
 
-  Future<void> _confirmDeleteReview(ArtworkOrder order) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Delete Review"),
-        content: const Text(
-          "This will remove the customer's rating and review. Continue?",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child:
-                const Text("Delete", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
+  String _formatOrderAddress(ArtworkOrder o) {
+    final snap = o.addressSnapshot;
 
-    if (ok != true) return;
+    if (snap != null && snap.isNotEmpty) {
+      final name = (snap["name"] ?? "").toString().trim();
+      final phone = (snap["phone"] ?? "").toString().trim();
+      final address = (snap["address"] ?? "").toString().trim();
+      final city = (snap["city"] ?? "").toString().trim();
+      final district = (snap["district"] ?? "").toString().trim();
+      final pincode = (snap["pincode"] ?? "").toString().trim();
 
-    try {
-      await backend.deleteOrderReview(order.id);
-      if (mounted) setState(() {});
-      _snack("Review deleted");
-    } catch (e) {
-      _snack(e.toString().replaceFirst('Exception: ', ''));
+      final line2Parts = <String>[
+        if (city.isNotEmpty) city,
+        if (district.isNotEmpty) district,
+        if (pincode.isNotEmpty) pincode,
+      ];
+
+      final built = [
+        if (name.isNotEmpty) "$name${phone.isNotEmpty ? ", $phone" : ""}",
+        if (address.isNotEmpty) address,
+        if (line2Parts.isNotEmpty) line2Parts.join(", "),
+      ].join("\n");
+
+      if (built.trim().isNotEmpty) return built;
     }
+
+    return (o.address ?? "-");
   }
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  "
-        "${two(dt.hour)}:${two(dt.minute)}";
+    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  ${two(dt.hour)}:${two(dt.minute)}";
   }
 }

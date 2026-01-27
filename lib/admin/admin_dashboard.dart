@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:artiva/admin/reviews_page.dart';
 import 'package:flutter/material.dart';
 
 import 'package:artiva/auth/auth_service.dart';
@@ -90,6 +91,17 @@ class AdminDashboard extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ManageArtworksPage()),
+                );
+              },
+            ),
+            _card(
+              icon: Icons.rate_review,
+              title: "Reviews",
+              subtitle: "View & remove customer reviews",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ReviewsPage()),
                 );
               },
             ),
