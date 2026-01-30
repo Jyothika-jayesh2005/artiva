@@ -3,7 +3,7 @@ import 'package:artiva/widgets/customer_scaffold.dart';
 import 'payment_page.dart';
 
 class CheckoutPage extends StatelessWidget {
-  final Map<String, dynamic> artwork; // ✅ FIXED
+  final Map<String, dynamic> artwork;
   final String address;
   final Map<String, dynamic> addressSnapshot;
   final String addressId;
@@ -18,10 +18,8 @@ class CheckoutPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = artwork["imageUrl"] ??
-                  artwork["imagePath"] ??
-                  artwork["image"] ??
-                  "";
+    final image =
+        artwork["imageUrl"] ?? artwork["imagePath"] ?? artwork["image"] ?? "";
 
     final title = artwork["title"] ?? "Artwork";
     final category = artwork["category"] ?? "";
@@ -92,14 +90,10 @@ class CheckoutPage extends StatelessWidget {
       ),
     );
   }
-}
 
-
-  // ✅ FIXED IMAGE HANDLER
+  // ✅ FIXED IMAGE HANDLER (INSIDE CLASS)
   Widget _artworkImage(String image) {
-    if (image.isEmpty) {
-      return _placeholder();
-    }
+    if (image.isEmpty) return _placeholder();
 
     if (image.startsWith("http")) {
       return Image.network(
@@ -142,4 +136,4 @@ class CheckoutPage extends StatelessWidget {
       ),
     );
   }
-
+}

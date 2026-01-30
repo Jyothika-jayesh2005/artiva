@@ -41,16 +41,15 @@ class _RegisterScreenState extends State<RegisterScreen>
 
     _fade = CurvedAnimation(parent: _c, curve: Curves.easeOut);
 
-    _scale = Tween<double>(begin: 0.92, end: 1.0).animate(
-      CurvedAnimation(parent: _c, curve: Curves.easeOutBack),
-    );
+    _scale = Tween<double>(
+      begin: 0.92,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutBack));
 
     _slideUp = Tween<Offset>(
       begin: const Offset(0, 0.12),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _c, curve: Curves.easeOutCubic),
-    );
+    ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
 
     _c.forward();
   }
@@ -159,7 +158,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                                   final value = (v ?? '').trim();
                                   if (value.isEmpty) return 'Enter your email';
                                   final emailRegex = RegExp(
-                                      r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+                                    r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
+                                  );
                                   if (!emailRegex.hasMatch(value)) {
                                     return 'Enter a valid email address';
                                   }
@@ -197,8 +197,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 obscure: !_passwordVisible,
                                 suffix: _eye(
                                   _passwordVisible,
-                                  () => setState(() => _passwordVisible =
-                                      !_passwordVisible),
+                                  () => setState(
+                                    () => _passwordVisible = !_passwordVisible,
+                                  ),
                                 ),
                                 validator: (v) {
                                   final value = v ?? '';
@@ -218,9 +219,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 obscure: !_confirmPasswordVisible,
                                 suffix: _eye(
                                   _confirmPasswordVisible,
-                                  () => setState(() =>
-                                      _confirmPasswordVisible =
-                                          !_confirmPasswordVisible),
+                                  () => setState(
+                                    () => _confirmPasswordVisible =
+                                        !_confirmPasswordVisible,
+                                  ),
                                 ),
                                 validator: (v) {
                                   final value = v ?? '';
@@ -266,16 +268,15 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 children: [
                                   const Text(
                                     'Already have an account? ',
-                                    style: TextStyle(
-                                        color: Color(0xFF7A5A4A)),
+                                    style: TextStyle(color: Color(0xFF7A5A4A)),
                                   ),
                                   GestureDetector(
                                     onTap: _loading
                                         ? null
                                         : () => Navigator.pushReplacementNamed(
-                                              context,
-                                              '/login',
-                                            ),
+                                            context,
+                                            '/login',
+                                          ),
                                     child: const Text(
                                       'Login',
                                       style: TextStyle(
@@ -370,8 +371,12 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   // ✅ Backend call unchanged, just gate it with Form validation
   Future<void> _handleRegister() async {
-    // ✅ This is real form validation
-    if (!_formKey.currentState!.validate()) return;
+    // 🔴 STEP 1: close keyboard & finish editing
+    FocusScope.of(context).unfocus();
+
+    // 🔴 STEP 2: validate form ONCE
+    final ok = _formKey.currentState?.validate() ?? false;
+    if (!ok) return;
 
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
@@ -403,8 +408,6 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }

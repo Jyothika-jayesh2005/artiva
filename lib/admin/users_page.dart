@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:artiva/widgets/admin_scaffold.dart';
 
+enum UserFilter { all, active, archived }
+
 class UsersPage extends StatelessWidget {
   const UsersPage({super.key});
 
@@ -10,106 +12,202 @@ class UsersPage extends StatelessWidget {
     return AdminScaffold(
       title: "Users",
       showBack: true,
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .where('role', isEqualTo: 'user') // ✅ only customers
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: const UsersListBody(filter: UserFilter.all),
+    );
+  }
+}
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text(
-                "No registered users yet",
-                style: TextStyle(fontSize: 16),
+/// ===================================================
+/// REUSABLE BODY FOR DASHBOARD (NO AdminScaffold)
+/// ARCHIVE / UNARCHIVE (NO DELETE)
+/// ===================================================
+class UsersListBody extends StatelessWidget {
+  final UserFilter filter;
+
+  const UsersListBody({super.key, required this.filter});
+
+  @override
+  Widget build(BuildContext context) {
+    Query query = FirebaseFirestore.instance
+        .collection('users')
+        .where('role', isEqualTo: 'user');
+
+    if (filter == UserFilter.active) {
+      query = query.where('archived', isEqualTo: false);
+    } else if (filter == UserFilter.archived) {
+      query = query.where('archived', isEqualTo: true);
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(
+            child: Text(
+              "No registered users yet",
+              style: TextStyle(fontSize: 16),
+            ),
+          );
+        }
+
+        final users = snapshot.data!.docs;
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: users.length,
+          itemBuilder: (context, i) {
+            final doc = users[i];
+            final data = doc.data() as Map<String, dynamic>;
+
+            final name = (data['name'] ?? 'Unknown').toString();
+            final email = (data['email'] ?? '-').toString();
+            final phone = (data['phone'] ?? '-').toString();
+            final bool archived = (data['archived'] == true);
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
               ),
-            );
-          }
-
-          final users = snapshot.data!.docs;
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: users.length,
-            itemBuilder: (context, i) {
-              final doc = users[i];
-              final data = doc.data() as Map<String, dynamic>;
-
-              final name = (data['name'] ?? 'Unknown').toString();
-              final email = (data['email'] ?? '-').toString();
-              final phone = (data['phone'] ?? '-').toString();
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : "?",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  title: Text(
-                    name,
+              child: ListTile(
+                leading: CircleAvatar(
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : "?",
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text("Email: $email\nPhone: $phone"),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () =>
-                        _confirmDelete(context, doc.id, name),
-                  ),
                 ),
-              );
-            },
-          );
-        },
-      ),
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _StatusChip(archived: archived),
+                  ],
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text("Email: $email\nPhone: $phone"),
+                ),
+                trailing: IconButton(
+                  icon: Icon(
+                    archived ? Icons.unarchive_rounded : Icons.archive_rounded,
+                    color: archived ? Colors.green : Colors.orange,
+                  ),
+                  onPressed: () => _confirmArchiveToggle(
+                    context: context,
+                    userId: doc.id,
+                    name: name,
+                    makeArchived: !archived,
+                  ),
+                  tooltip: archived ? "Unarchive user" : "Archive user",
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
-  // ===================================================
-  // DELETE CONFIRMATION POPUP
-  // ===================================================
+  void _confirmArchiveToggle({
+    required BuildContext context,
+    required String userId,
+    required String name,
+    required bool makeArchived,
+  }) {
+    // ✅ ADD THIS LINE (capture messenger from page context)
+    final messenger = ScaffoldMessenger.of(context);
 
-  void _confirmDelete(BuildContext context, String userId, String name) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Delete User"),
+      builder: (dialogCtx) => AlertDialog(
+        // ✅ CHANGE '_' to 'dialogCtx'
+        title: Text(makeArchived ? "Archive User" : "Unarchive User"),
         content: Text(
-          "Are you sure you want to delete \"$name\"?\n\nThis action cannot be undone.",
+          makeArchived
+              ? "Are you sure you want to archive \"$name\"?\n\nArchived users cannot login."
+              : "Are you sure you want to unarchive \"$name\"?\n\nThey will be able to login again.",
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () =>
+                Navigator.pop(dialogCtx), // ✅ CHANGE context -> dialogCtx
             child: const Text("Cancel"),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: makeArchived ? Colors.orange : Colors.green,
+            ),
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogCtx); // ✅ CHANGE context -> dialogCtx
 
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(userId)
-                  .delete();
+              try {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(userId)
+                    .set({
+                      'archived': makeArchived,
+                      'updatedAt': FieldValue.serverTimestamp(),
+                    }, SetOptions(merge: true));
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("User deleted successfully")),
-              );
+                // ✅ CHANGE ScaffoldMessenger.of(context) -> messenger
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      makeArchived
+                          ? "User archived successfully"
+                          : "User unarchived successfully",
+                    ),
+                  ),
+                );
+              } catch (e) {
+                // ✅ CHANGE ScaffoldMessenger.of(context) -> messenger
+                messenger.showSnackBar(SnackBar(content: Text("Failed: $e")));
+              }
             },
-            child: const Text("Delete"),
+            child: Text(makeArchived ? "Archive" : "Unarchive"),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final bool archived;
+  const _StatusChip({required this.archived});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: archived
+            ? Colors.red.withOpacity(0.10)
+            : Colors.green.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: archived
+              ? Colors.red.withOpacity(0.35)
+              : Colors.green.withOpacity(0.35),
+        ),
+      ),
+      child: Text(
+        archived ? "Archived" : "Active",
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: archived ? Colors.red : Colors.green,
+        ),
       ),
     );
   }

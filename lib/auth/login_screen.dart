@@ -39,16 +39,15 @@ class _LoginScreenState extends State<LoginScreen>
 
     _fade = CurvedAnimation(parent: _c, curve: Curves.easeOut);
 
-    _scale = Tween<double>(begin: 0.94, end: 1.0).animate(
-      CurvedAnimation(parent: _c, curve: Curves.easeOutBack),
-    );
+    _scale = Tween<double>(
+      begin: 0.94,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutBack));
 
     _slideUp = Tween<Offset>(
       begin: const Offset(0, 0.12),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _c, curve: Curves.easeOutCubic),
-    );
+    ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
 
     _c.forward();
   }
@@ -134,7 +133,8 @@ class _LoginScreenState extends State<LoginScreen>
                                   final value = (v ?? '').trim();
                                   if (value.isEmpty) return 'Enter email';
                                   final emailRegex = RegExp(
-                                      r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+                                    r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
+                                  );
                                   if (!emailRegex.hasMatch(value)) {
                                     return 'Enter a valid email';
                                   }
@@ -157,8 +157,10 @@ class _LoginScreenState extends State<LoginScreen>
                                   ),
                                   onPressed: _loading
                                       ? null
-                                      : () => setState(() =>
-                                          _passwordVisible = !_passwordVisible),
+                                      : () => setState(
+                                          () => _passwordVisible =
+                                              !_passwordVisible,
+                                        ),
                                 ),
                                 validator: (v) {
                                   if (v == null || v.isEmpty) {
@@ -197,8 +199,7 @@ class _LoginScreenState extends State<LoginScreen>
                               ValueListenableBuilder<TextEditingValue>(
                                 valueListenable: _emailController,
                                 builder: (_, value, __) {
-                                  final email =
-                                      value.text.trim().toLowerCase();
+                                  final email = value.text.trim().toLowerCase();
                                   final isAdminTrying = email == adminEmail;
 
                                   if (isAdminTrying) {
@@ -223,10 +224,10 @@ class _LoginScreenState extends State<LoginScreen>
                                         onTap: _loading
                                             ? null
                                             : () =>
-                                                Navigator.pushReplacementNamed(
-                                                  context,
-                                                  '/register',
-                                                ),
+                                                  Navigator.pushReplacementNamed(
+                                                    context,
+                                                    '/register',
+                                                  ),
                                         child: const Text(
                                           'Register',
                                           style: TextStyle(
@@ -328,9 +329,10 @@ class _LoginScreenState extends State<LoginScreen>
         user = authService.currentUser ?? user;
       }
 
-      Navigator.pushReplacementNamed(
+      Navigator.pushNamedAndRemoveUntil(
         context,
         user.role == Role.admin ? '/admin' : '/home',
+        (route) => false,
       );
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -341,8 +343,6 @@ class _LoginScreenState extends State<LoginScreen>
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }

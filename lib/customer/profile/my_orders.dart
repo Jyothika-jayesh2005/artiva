@@ -36,7 +36,9 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
 
     if (_orders != null) return _orders!; // 🔥 NO REFETCH
 
-    final list = await backend.getMyOrders(user.email);
+    final uid = user.uid;
+    final list = await backend.getMyOrdersByUid(uid);
+
     _orders = list.reversed.toList();
     return _orders!;
   }
@@ -45,12 +47,15 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
+        if (_busy) return false; // 🔥 ADD THIS LINE
+
         if (widget.fromPayment) {
           _goHome(context);
           return false;
         }
         return true;
       },
+
       child: CustomerScaffold(
         currentIndex: -1,
         title: "My Orders",
@@ -112,19 +117,25 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(order.artTitle,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 15)),
+                    Text(
+                      order.artTitle,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
                     const SizedBox(height: 6),
-                    Text("₹${order.price}",
-                        style: const TextStyle(
-                            color: Color(0xFFE16417),
-                            fontWeight: FontWeight.w600)),
+                    Text(
+                      "₹${order.price}",
+                      style: const TextStyle(
+                        color: Color(0xFFE16417),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Text(
                       "Ordered on ${_formatDate(order.orderedAt)}",
-                      style:
-                          const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     const SizedBox(height: 8),
                     _statusChip(order.status),
@@ -141,13 +152,16 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
               children: [
                 _starsRow(order.rating ?? 0),
                 const SizedBox(width: 8),
-                Text("${order.rating}/5",
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(
+                  "${order.rating}/5",
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
                 const Spacer(),
                 if (order.ratedAt != null)
-                  Text(_formatDate(order.ratedAt!),
-                      style: const TextStyle(
-                          fontSize: 12, color: Colors.grey)),
+                  Text(
+                    _formatDate(order.ratedAt!),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
               ],
             ),
             if ((order.review ?? "").trim().isNotEmpty) ...[
@@ -171,13 +185,17 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                 onPressed: _busy ? null : () => _openRatingDialog(order),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE16417),
+                  disabledBackgroundColor: Colors.grey.shade400,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 child: Text(
                   _busy ? "PLEASE WAIT..." : "Rate This Order",
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: _busy ? Colors.black54 : Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -241,11 +259,13 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Cancel")),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancel"),
+            ),
             TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text("Submit")),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Submit"),
+            ),
           ],
         ),
       ),
@@ -255,24 +275,29 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
 
     setState(() => _busy = true);
 
-    await backend.submitOrderRating(
-      orderId: order.id,
-      rating: selected,
-      review: ctrl.text.trim().isEmpty ? null : ctrl.text.trim(),
-    );
-
-    // 🔥 UPDATE ONLY THIS ORDER LOCALLY
-    final index = _orders!.indexWhere((o) => o.id == order.id);
-    if (index != -1) {
-      _orders![index] = order.copyWith(
+    try {
+      await backend.submitOrderRating(
+        orderId: order.id,
         rating: selected,
         review: ctrl.text.trim().isEmpty ? null : ctrl.text.trim(),
-        ratedAt: DateTime.now(),
-        ratingLocked: true,
       );
-    }
 
-    setState(() => _busy = false);
+      final index = _orders!.indexWhere((o) => o.id == order.id);
+      if (index != -1) {
+        _orders![index] = order.copyWith(
+          rating: selected,
+          review: ctrl.text.trim().isEmpty ? null : ctrl.text.trim(),
+          ratedAt: DateTime.now(),
+          ratingLocked: true,
+        );
+      }
+      if (mounted) setState(() {});
+
+
+    } finally {
+      if (!mounted) return; // 🔥 ADD THIS LINE
+      setState(() => _busy = false);
+    }
   }
 
   Widget _starsRow(int rating) {
@@ -296,16 +321,27 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
         borderRadius: BorderRadius.circular(999),
         color: Colors.black.withOpacity(0.05),
       ),
-      child: Text("Status: ${status.name}",
-          style:
-              const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      child: Text(
+        "Status: ${status.name}",
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
     );
   }
 
   String _formatDate(DateTime dt) {
     const m = [
-      "Jan","Feb","Mar","Apr","May","Jun",
-      "Jul","Aug","Sep","Oct","Nov","Dec"
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
     ];
     return "${dt.day} ${m[dt.month - 1]} ${dt.year}";
   }

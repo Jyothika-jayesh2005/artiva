@@ -28,13 +28,20 @@ class AuthService {
         userNotifier.value = null;
         return;
       }
-      userNotifier.value = await _getOrCreateUserDoc(user);
+
+      try {
+        userNotifier.value = await _getOrCreateUserDoc(user);
+      } catch (_) {
+        await _auth.signOut();
+        userNotifier.value = null;
+      }
     });
   }
 
   Future<AppUser> _getOrCreateUserDoc(User user) async {
-    final DocumentReference<Map<String, dynamic>> ref =
-        _db.collection('users').doc(user.uid);
+    final DocumentReference<Map<String, dynamic>> ref = _db
+        .collection('users')
+        .doc(user.uid);
 
     final DocumentSnapshot snap = await ref.get();
 
@@ -46,7 +53,7 @@ class AuthService {
         email: user.email ?? '',
         phone: '',
         role: Role.user,
-        photoUrl: "", // ✅ ADD
+        photoUrl: "",
       );
 
       await ref.set({
@@ -54,15 +61,27 @@ class AuthService {
         'email': newUser.email,
         'phone': newUser.phone,
         'role': 'user',
-        'photoUrl': newUser.photoUrl, // ✅ ADD
+        'photoUrl': newUser.photoUrl,
+        'archived': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      return newUser;
+      return newUser; // ✅ just return
     }
 
     final Map<String, dynamic> data =
         (snap.data() as Map<String, dynamic>?) ?? <String, dynamic>{};
+
+    // ✅ NEW: Block archived users
+    final bool archived = (data['archived'] == true);
+    if (archived) {
+      await _auth.signOut();
+      userNotifier.value = null;
+      throw FirebaseAuthException(
+        code: 'user-disabled',
+        message: 'Your account is archived by admin.',
+      );
+    }
 
     final roleStr = (data['role'] ?? 'user').toString().toLowerCase();
 
@@ -72,7 +91,7 @@ class AuthService {
       email: (data['email'] ?? user.email ?? '').toString(),
       phone: (data['phone'] ?? '').toString(),
       role: roleStr == 'admin' ? Role.admin : Role.user,
-      photoUrl: (data['photoUrl'] ?? '').toString(), // ✅ ADD
+      photoUrl: (data['photoUrl'] ?? '').toString(),
     );
   }
 
@@ -86,8 +105,9 @@ class AuthService {
       return;
     }
 
-    final DocumentReference<Map<String, dynamic>> ref =
-        _db.collection('users').doc(user.uid);
+    final DocumentReference<Map<String, dynamic>> ref = _db
+        .collection('users')
+        .doc(user.uid);
 
     await ref.set({
       'email': user.email ?? adminEmail,
@@ -116,15 +136,17 @@ class AuthService {
 
       await user.updateDisplayName(name);
 
-      final DocumentReference<Map<String, dynamic>> ref =
-          _db.collection('users').doc(user.uid);
+      final DocumentReference<Map<String, dynamic>> ref = _db
+          .collection('users')
+          .doc(user.uid);
 
       await ref.set({
         'name': name,
         'email': email.trim(),
         'phone': phone.trim(),
         'role': 'user',
-        'photoUrl': '', // ✅ ADD
+        'photoUrl': '',
+        'archived': false, // ✅ NEW
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -134,11 +156,12 @@ class AuthService {
         email: email.trim(),
         phone: phone.trim(),
         role: Role.user,
-        photoUrl: "", // ✅ ADD
+        photoUrl: "",
       );
 
-      userNotifier.value = appUser;
-      return appUser;
+      final fresh = await _getOrCreateUserDoc(user);
+      userNotifier.value = fresh;
+      return fresh;
     } on FirebaseAuthException catch (e) {
       throw Exception(_friendlyAuthError(e));
     }
@@ -154,9 +177,9 @@ class AuthService {
       final user = cred.user;
       if (user == null) throw Exception('Login failed. Try again.');
 
-      final appUser = await _getOrCreateUserDoc(user);
-      userNotifier.value = appUser;
-      return appUser;
+      final fresh = await _getOrCreateUserDoc(user);
+      userNotifier.value = fresh;
+      return fresh;
     } on FirebaseAuthException catch (e) {
       throw Exception(_friendlyAuthError(e));
     }
@@ -176,8 +199,9 @@ class AuthService {
 
     await user.updateDisplayName(name);
 
-    final DocumentReference<Map<String, dynamic>> ref =
-        _db.collection('users').doc(user.uid);
+    final DocumentReference<Map<String, dynamic>> ref = _db
+        .collection('users')
+        .doc(user.uid);
 
     await ref.update({
       'name': name,
@@ -190,7 +214,7 @@ class AuthService {
     return updated;
   }
 
-  // ✅ ADD THIS METHOD (this fixes your ProfileSettingsPage errors)
+  // ✅ Profile photo update method
   Future<AppUser> updateProfilePhoto({required String photoUrl}) async {
     final fbUser = _auth.currentUser;
     if (fbUser == null) throw Exception('Not logged in.');
@@ -225,6 +249,8 @@ class AuthService {
         return 'Network error. Check your internet.';
       case 'too-many-requests':
         return 'Too many attempts. Try again later.';
+      case 'user-disabled':
+        return e.message ?? 'Your account is archived by admin.';
       default:
         return e.message ?? 'Authentication error.';
     }

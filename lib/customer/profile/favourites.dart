@@ -15,32 +15,33 @@ class FavouritesPage extends StatelessWidget {
 
     return FirebaseFirestore.instance
         .collection("users")
-        .doc(user.email)
+        .doc(user.uid)
         .collection("favourites")
         .orderBy("createdAt", descending: true)
         .snapshots()
         .map((snap) {
-      return snap.docs.map((d) {
-        final data = d.data();
+          return snap.docs.map((d) {
+            final data = d.data();
 
-        final id = (data["artworkId"] ?? d.id).toString();
+            final id = (data["artworkId"] ?? d.id).toString();
 
-        // ✅ Normalize image fields so ArtworkCard + Details can display
-        final imageAny = (data["image"] ??
-                data["imageAny"] ??
-                data["imageUrl"] ??
-                data["imagePath"] ??
-                "")
-            .toString();
+            // ✅ Normalize image fields so ArtworkCard + Details can display
+            final imageAny =
+                (data["image"] ??
+                        data["imageAny"] ??
+                        data["imageUrl"] ??
+                        data["imagePath"] ??
+                        "")
+                    .toString();
 
-        return {
-          ...data,
-          "id": id,
-          "imageUrl": imageAny.startsWith("http") ? imageAny : "",
-          "imagePath": imageAny.startsWith("http") ? "" : imageAny,
-        };
-      }).toList();
-    });
+            return {
+              ...data,
+              "id": id,
+              "imageUrl": imageAny.startsWith("http") ? imageAny : "",
+              "imagePath": imageAny.startsWith("http") ? "" : imageAny,
+            };
+          }).toList();
+        });
   }
 
   @override

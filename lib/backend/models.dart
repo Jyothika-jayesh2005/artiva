@@ -1,5 +1,7 @@
 // ---------------- USER ----------------
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum Role { admin, user }
 
 class AppUser {
@@ -9,6 +11,7 @@ class AppUser {
   final String phone;
   final Role role;
   final String photoUrl;
+  final bool archived;
 
   AppUser({
     required this.uid,
@@ -17,26 +20,11 @@ class AppUser {
     required this.phone,
     required this.role,
     this.photoUrl = "",
+    this.archived = false,
   });
 
-  AppUser copyWith({
-    String? name,
-    String? phone,
-    Role? role,
-    String? photoUrl,
-  }) {
-    return AppUser(
-      uid: uid,
-      name: name ?? this.name,
-      email: email,
-      phone: phone ?? this.phone,
-      role: role ?? this.role,
-      photoUrl: photoUrl ?? this.photoUrl,
-    );
-  }
-
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {
-    final roleStr = (map["role"] ?? "user").toString();
+    final roleStr = (map["role"] ?? "user").toString().toLowerCase();
     final role = roleStr == "admin" ? Role.admin : Role.user;
 
     return AppUser(
@@ -46,19 +34,23 @@ class AppUser {
       phone: (map["phone"] ?? "").toString(),
       role: role,
       photoUrl: (map["photoUrl"] ?? "").toString(),
+      archived: map["archived"] == true,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       "name": name,
-      "email": email,
+      "email": email.toLowerCase().trim(),
       "phone": phone,
       "role": role == Role.admin ? "admin" : "user",
       "photoUrl": photoUrl,
+      "archived": archived,
+      "updatedAt": FieldValue.serverTimestamp(), // needs cloud_firestore import
     };
   }
 }
+
 
 // ---------------- EXHIBITION ----------------
 
@@ -146,11 +138,27 @@ class ExhibitionBooking {
     required this.totalAmount,
     required this.bookedAt,
   });
+
+  // ✅ THIS IS THE REQUIRED ADDITION
+  factory ExhibitionBooking.fromMap(String id, Map<String, dynamic> map) {
+    return ExhibitionBooking(
+      id: id,
+      exhibitionId: (map['exhibitionId'] ?? '').toString(),
+      exhibitionTitle: (map['exhibitionTitle'] ?? '').toString(),
+      venue: (map['venue'] ?? '').toString(),
+      customerName: (map['customerName'] ?? '').toString(),
+      customerEmail: (map['customerEmail'] ?? '').toString(),
+      seats: _toInt(map['seats']),
+      pricePerSeat: _toInt(map['pricePerSeat']),
+      totalAmount: _toInt(map['totalAmount']),
+      bookedAt: _parseDateTime(map['createdAt']),
+    );
+  }
 }
 
 // ---------------- ORDERS ----------------
 
-enum OrderStatus { pending, shipped, delivered, }
+enum OrderStatus { pending, shipped, delivered }
 
 class ArtworkOrder {
   final String id;

@@ -4,31 +4,32 @@ class AdminScaffold extends StatelessWidget {
   final String title;
   final Widget body;
   final List<Widget>? actions;
-  final bool showBack; // ✅ NEW
+  final bool showBack;
 
   const AdminScaffold({
     super.key,
     required this.title,
     required this.body,
     this.actions,
-    this.showBack = false, // default: no back arrow
+    this.showBack = false,
   });
+
+  static const Color primary = Color(0xFFFF8C1A);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: const Color(0xFFF6F7FB),
       body: SafeArea(
         child: Column(
           children: [
-            // ================= ADMIN HEADER =================
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
+                  colors: [Color(0xFFFF9F1C), Color(0xFFFF7A18)],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0xFF7B2CBF), Color(0xFF5A189A)],
                 ),
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(32),
@@ -36,42 +37,25 @@ class AdminScaffold extends StatelessWidget {
                 ),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // LEFT: BACK + TITLE
-                  Row(
-                    children: [
-                      if (showBack)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: Colors.white,
-                          ),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // RIGHT: ACTIONS (logout etc.)
-                  if (actions != null)
-                    IconTheme(
-                      data: const IconThemeData(color: Colors.white),
-                      child: Row(children: actions!),
+                  if (showBack)
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.maybePop(context),
                     ),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (actions != null) Row(children: actions!),
                 ],
               ),
             ),
-
-            // ================= BODY =================
             Expanded(child: body),
           ],
         ),

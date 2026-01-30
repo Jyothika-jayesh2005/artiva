@@ -59,7 +59,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
 
     return _db
         .collection("users")
-        .doc(user.email)
+        .doc(user.uid)
         .collection("favourites")
         .doc(_artId);
   }
@@ -344,6 +344,21 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                               (widget.artwork["size_in"] ?? "-").toString()),
                         ],
                       ),
+
+                      const SizedBox(height: 32),
+
+                      // ✅ CUSTOMER RATINGS SECTION
+                      const Text(
+                        "Customer Ratings",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildCustomerRatingsSection(),
+
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
@@ -544,5 +559,160 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
         ],
       ),
     );
+  }
+
+  // ✅ NEW: Build customer ratings section
+  Widget _buildCustomerRatingsSection() {
+    return FutureBuilder<List<ArtworkOrder>>(
+      future: backend.getArtworkReviews(_artId),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snap.hasError) {
+          return Center(
+            child: Text(
+              "Error loading reviews",
+              style: TextStyle(color: Colors.red.shade400),
+            ),
+          );
+        }
+
+        final reviews = snap.data ?? [];
+
+        if (reviews.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Center(
+              child: Text(
+                "No ratings yet. Be the first to review!",
+                style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+              ),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: reviews.length,
+          itemBuilder: (_, i) => _buildReviewCard(reviews[i]),
+        );
+      },
+    );
+  }
+
+  // ✅ NEW: Build individual review card
+  Widget _buildReviewCard(ArtworkOrder review) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: Stars and name
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildStarsRow(review.rating ?? 0),
+                    const SizedBox(height: 4),
+                    Text(
+                      review.customerName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (review.ratedAt != null)
+                Text(
+                  _formatReviewDate(review.ratedAt!),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey,
+                  ),
+                ),
+            ],
+          ),
+
+          // Rating score
+          if (review.rating != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              "${review.rating}/5 Stars",
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.orange.shade700,
+                fontSize: 12,
+              ),
+            ),
+          ],
+
+          // Review text
+          if ((review.review ?? "").trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              review.review!.trim(),
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.4,
+              ),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Build stars row for review card
+  Widget _buildStarsRow(int rating) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(
+        5,
+        (i) => Icon(
+          i < rating ? Icons.star_rounded : Icons.star_border_rounded,
+          size: 16,
+          color: Colors.orange,
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Format review date
+  String _formatReviewDate(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+
+    if (diff.inDays == 0) {
+      if (diff.inHours == 0) {
+        return "${diff.inMinutes}m ago";
+      }
+      return "${diff.inHours}h ago";
+    } else if (diff.inDays < 30) {
+      return "${diff.inDays}d ago";
+    } else if (diff.inDays < 365) {
+      return "${(diff.inDays / 30).floor()}mo ago";
+    }
+    return "${(diff.inDays / 365).floor()}y ago";
   }
 }

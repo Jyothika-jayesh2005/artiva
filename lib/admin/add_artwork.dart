@@ -226,20 +226,60 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
                 ),
               ),
               const SizedBox(height: 16),
+
               _input("Artwork Title", titleCtrl),
-              _input("Price", priceCtrl,
-                  keyboard: TextInputType.number),
+              _input("Price", priceCtrl, keyboard: TextInputType.number),
               _input("Total Quantity", quantityCtrl,
                   keyboard: TextInputType.number),
+
+              // ✅ Category
+              _dropdown(
+                label: "Category",
+                value: selectedCategory,
+                items: categories,
+                onChanged: (v) => setState(() => selectedCategory = v),
+              ),
+
+              // ✅ Material (saved as "paper")
+              _dropdown(
+                label: "Material",
+                value: selectedMaterial,
+                items: const ["Canvas", "Paper", "Wood", "Acrylic Sheet", "Other"],
+                onChanged: (v) => setState(() => selectedMaterial = v),
+              ),
+
+              // ✅ COA
+              _dropdown(
+                label: "COA (Certificate of Authenticity)",
+                value: coa,
+                items: const ["Yes", "No"],
+                onChanged: (v) => setState(() => coa = v),
+              ),
+
               _input("Size (cm)", sizeCmCtrl),
               _input("Size (in)", sizeInCtrl),
+
+              // ✅ Description
+              _input(
+                "Description",
+                descriptionCtrl,
+                keyboard: TextInputType.multiline,
+                maxLines: 4,
+              ),
+
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
                   onPressed: _saveArtwork,
-                  child: Text(_isEdit ? "Update Artwork" : "Add Artwork"),
+                  child: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(_isEdit ? "Update Artwork" : "Add Artwork"),
                 ),
               ),
             ],
@@ -256,14 +296,47 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     return Image.file(File(path), fit: BoxFit.cover);
   }
 
-  Widget _input(String label, TextEditingController c,
-      {TextInputType keyboard = TextInputType.text}) {
+  Widget _input(
+    String label,
+    TextEditingController c, {
+    TextInputType keyboard = TextInputType.text,
+    int maxLines = 1,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: c,
         keyboardType: keyboard,
+        maxLines: maxLines,
         validator: (v) => v == null || v.isEmpty ? "Required" : null,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+  }
+
+  Widget _dropdown({
+    required String label,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        items: items
+            .map((e) => DropdownMenuItem<String>(
+                  value: e,
+                  child: Text(e),
+                ))
+            .toList(),
+        onChanged: (v) {
+          if (v == null) return;
+          onChanged(v);
+        },
         decoration: InputDecoration(
           labelText: label,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

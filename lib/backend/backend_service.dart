@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:artiva/backend/models.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class BackendService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -46,8 +47,7 @@ class BackendService {
         return OrderStatus.shipped;
       case 'delivered':
         return OrderStatus.delivered;
-      
-      
+
       default:
         return OrderStatus.pending;
     }
@@ -77,7 +77,9 @@ class BackendService {
         .collection('artworks')
         .orderBy('updatedAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map((d) => {...d.data(), "id": d.id}).toList());
+        .map(
+          (snap) => snap.docs.map((d) => {...d.data(), "id": d.id}).toList(),
+        );
   }
 
   Future<List<Map<String, dynamic>>> getArtworksOnce() async {
@@ -142,31 +144,33 @@ class BackendService {
   }
 
   Stream<List<Exhibition>> watchExhibitions() {
-    return _db.collection('exhibitions').orderBy('dateTime').snapshots().map(
-      (snap) {
-        return snap.docs.map((d) {
-          final data = d.data();
-          return Exhibition(
-            id: d.id,
-            title: _asString(data['title']),
-            venue: _asString(data['venue']),
-            dateTime: _asDate(data['dateTime'], fallback: DateTime.now()),
-            description: _asString(data['description']),
-            totalSeats: _asInt(data['totalSeats']),
-            bookedSeats: _asInt(data['bookedSeats']),
-            pricePerSeat: _asInt(data['pricePerSeat']),
-            imageUrl: _asString(
-              data['imageUrl'],
-              fallback: _asString(data['imagePath']),
-            ),
-            isArchived: _asBool(data['isArchived']),
-          );
-        }).toList();
-      },
-    );
+    return _db.collection('exhibitions').orderBy('dateTime').snapshots().map((
+      snap,
+    ) {
+      return snap.docs.map((d) {
+        final data = d.data();
+        return Exhibition(
+          id: d.id,
+          title: _asString(data['title']),
+          venue: _asString(data['venue']),
+          dateTime: _asDate(data['dateTime'], fallback: DateTime.now()),
+          description: _asString(data['description']),
+          totalSeats: _asInt(data['totalSeats']),
+          bookedSeats: _asInt(data['bookedSeats']),
+          pricePerSeat: _asInt(data['pricePerSeat']),
+          imageUrl: _asString(
+            data['imageUrl'],
+            fallback: _asString(data['imagePath']),
+          ),
+          isArchived: _asBool(data['isArchived']),
+        );
+      }).toList();
+    });
   }
 
-  Future<List<Exhibition>> getExhibitions({bool includeArchived = false}) async {
+  Future<List<Exhibition>> getExhibitions({
+    bool includeArchived = false,
+  }) async {
     final snap = await _db.collection('exhibitions').orderBy('dateTime').get();
 
     final list = snap.docs.map((d) {
@@ -207,55 +211,50 @@ class BackendService {
     required String customerName,
     required String customerEmail,
   }) async {
-    if (seats <= 0) throw Exception("Invalid seat count.");
-
     final exRef = _db.collection('exhibitions').doc(exhibitionId);
-    final bookingRef = _db.collection('exhibition_bookings').doc();
+    final passRef = _db.collection('passes').doc(); // or bookings
 
-    return _db.runTransaction<String>((tx) async {
+    return _db.runTransaction((tx) async {
       final exSnap = await tx.get(exRef);
-      if (!exSnap.exists) throw Exception("Exhibition not found.");
 
-      final data = exSnap.data() as Map<String, dynamic>;
-
-      final totalSeats = _asInt(data['totalSeats']);
-      final bookedSeats = _asInt(data['bookedSeats']);
-      final pricePerSeat = _asInt(data['pricePerSeat']);
-      final title = _asString(data['title']);
-      final venue = _asString(data['venue']);
-
-      final remaining = totalSeats - bookedSeats;
-      if (remaining < seats) {
-        throw Exception("Not enough seats. Only $remaining left.");
+      if (!exSnap.exists) {
+        throw Exception("Exhibition not found");
       }
 
-      final totalAmount = seats * pricePerSeat;
+      final data = exSnap.data()!;
+      final int totalSeats = data['totalSeats'] ?? 0;
+      final int bookedSeats = data['bookedSeats'] ?? 0;
 
-      tx.update(exRef, {
-        'bookedSeats': bookedSeats + seats,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final int available = totalSeats - bookedSeats;
 
-      tx.set(bookingRef, {
+      if (available < seats) {
+        throw Exception("Not enough seats available");
+      }
+
+      // ✅ UPDATE SEATS
+      tx.update(exRef, {'bookedSeats': bookedSeats + seats});
+
+      // ✅ CREATE PASS / BOOKING
+      tx.set(passRef, {
         'exhibitionId': exhibitionId,
-        'exhibitionTitle': title,
-        'venue': venue,
+        'exhibitionTitle': data['title'],
+        'venue': data['venue'],
+        'pricePerSeat': data['pricePerSeat'],
+        'seats': seats,
+        'totalAmount': seats * (data['pricePerSeat'] ?? 0),
         'customerName': customerName,
         'customerEmail': customerEmail,
-        'seats': seats,
-        'pricePerSeat': pricePerSeat,
-        'totalAmount': totalAmount,
-        'bookedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
       });
 
-      return bookingRef.id;
+      return passRef.id;
     });
   }
 
   Future<List<ExhibitionBooking>> getAllExhibitionBookings() async {
     final snap = await _db
-        .collection('exhibition_bookings')
-        .orderBy('bookedAt', descending: true)
+        .collection('passes') // ✅ FIXED
+        .orderBy('createdAt', descending: true)
         .get();
 
     return snap.docs.map((d) {
@@ -270,7 +269,7 @@ class BackendService {
         seats: _asInt(data['seats']),
         pricePerSeat: _asInt(data['pricePerSeat']),
         totalAmount: _asInt(data['totalAmount']),
-        bookedAt: _asDate(data['bookedAt'], fallback: DateTime.now()),
+        bookedAt: _asDate(data['createdAt'], fallback: DateTime.now()),
       );
     }).toList();
   }
@@ -279,9 +278,9 @@ class BackendService {
     String customerEmail,
   ) async {
     final snap = await _db
-        .collection('exhibition_bookings')
+        .collection('passes') // ✅ FIXED
         .where('customerEmail', isEqualTo: customerEmail)
-        .orderBy('bookedAt', descending: true)
+        .orderBy('createdAt', descending: true)
         .get();
 
     return snap.docs.map((d) {
@@ -296,27 +295,28 @@ class BackendService {
         seats: _asInt(data['seats']),
         pricePerSeat: _asInt(data['pricePerSeat']),
         totalAmount: _asInt(data['totalAmount']),
-        bookedAt: _asDate(data['bookedAt'], fallback: DateTime.now()),
+        bookedAt: _asDate(data['createdAt'], fallback: DateTime.now()),
       );
     }).toList();
   }
 
   // ---------------- ORDERS ----------------
-  
 
-  Future<int?> getMyArtworkRating(String artworkId, String customerEmail) async {
+  Future<int?> getMyArtworkRating(
+    String artworkId,
+    String customerEmail,
+  ) async {
     final snap = await _db
         .collection('orders')
         .where('artId', isEqualTo: artworkId)
         .where('customerEmail', isEqualTo: customerEmail)
-        .where('rating', isGreaterThan: 0)
         .limit(1)
         .get();
 
     if (snap.docs.isEmpty) return null;
 
     final r = snap.docs.first.data()['rating'];
-    return r is num ? r.toInt() : null;
+    return (r is num && r > 0) ? r.toInt() : null; // ✅ FIXED
   }
 
   Future<List<ArtworkOrder>> getAllOrders() async {
@@ -327,12 +327,13 @@ class BackendService {
     return snap.docs.map(_orderFromDoc).toList();
   }
 
-  Future<List<ArtworkOrder>> getMyOrders(String customerEmail) async {
+  Future<List<ArtworkOrder>> getMyOrdersByUid(String uid) async {
     final snap = await _db
         .collection('orders')
-        .where('customerEmail', isEqualTo: customerEmail)
+        .where('userId', isEqualTo: uid)
         .orderBy('orderedAt', descending: true)
         .get();
+
     return snap.docs.map(_orderFromDoc).toList();
   }
 
@@ -344,11 +345,59 @@ class BackendService {
   }
 
   Future<void> deleteOrderReview(String orderId) async {
-    await _db.collection('orders').doc(orderId).update({
-      'rating': FieldValue.delete(),
-      'review': FieldValue.delete(),
-      'ratedAt': FieldValue.delete(),
-      'updatedAt': FieldValue.serverTimestamp(),
+    final orderRef = _db.collection('orders').doc(orderId);
+
+    await _db.runTransaction<void>((tx) async {
+      final orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) throw Exception("Order not found.");
+
+      final data = orderSnap.data() as Map<String, dynamic>;
+      final artId = (data['artId'] ?? '').toString().trim();
+      final rating = data['rating'];
+      
+
+      // ✅ Mark as deleted so customer cannot review again
+      tx.update(orderRef, {
+        'rating': FieldValue.delete(),
+        'review': FieldValue.delete(),
+        'ratedAt': FieldValue.delete(),
+        'reviewDeleted': true, // ✅ NEW: Track that review was deleted
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // ✅ Recompute average rating if there was a rating
+      if (rating is num && rating > 0 && artId.isNotEmpty) {
+        final artRef = _db.collection('artworks').doc(artId);
+        final artSnap = await tx.get(artRef);
+
+        final double oldAvg = (artSnap.data()?['avgRating'] ?? 0).toDouble();
+        final int oldCount = (artSnap.data()?['ratingCount'] ?? 0).toInt();
+
+        if (oldCount > 0) {
+          final newCount = oldCount - 1;
+          final newAvg = newCount == 0
+              ? 0.0
+              : ((oldAvg * oldCount) - rating.toDouble()) / newCount;
+
+          tx.update(artRef, {
+            'avgRating': newAvg,
+            'ratingCount': newCount,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+        final userId = _asString(data['userId']).trim();
+
+        // ✅ Remove from user_ratings subcollection (doc id = uid)
+        if (userId.isNotEmpty && artId.isNotEmpty) {
+          tx.delete(
+            _db
+                .collection('artworks')
+                .doc(artId)
+                .collection('user_ratings')
+                .doc(userId),
+          );
+        }
+      }
     });
   }
 
@@ -372,16 +421,29 @@ class BackendService {
 
       final statusStr = _asString(data['status'], fallback: 'pending');
       final status = _statusFromString(statusStr);
+
+      // ✅ REQUIREMENT 1: Only allow rating if order is delivered
       if (status != OrderStatus.delivered) {
         throw Exception("You can rate only after the order is delivered.");
       }
 
       final locked = data['ratingLocked'] == true;
+      final reviewDeleted = data['reviewDeleted'] == true;
+
+      // ✅ REQUIREMENT 3: If admin deleted review, customer cannot review again
+      if (reviewDeleted) {
+        throw Exception(
+          "Your previous review was removed by admin. You cannot submit another review.",
+        );
+      }
+
+      // ✅ REQUIREMENT 2: Customer can review only once
       if (locked) {
         throw Exception("You already rated this order.");
       }
 
-      final alreadyRated = (data['ratedAt'] != null) || (data['rating'] != null);
+      final alreadyRated =
+          (data['ratedAt'] != null) || (data['rating'] != null);
       if (alreadyRated) {
         tx.update(orderRef, {'ratingLocked': true});
         throw Exception("You already rated this order.");
@@ -401,47 +463,42 @@ class BackendService {
     if (artId.isEmpty) return;
 
     // Recompute avg rating
-    final ratedOrdersSnap = await _db
-        .collection('orders')
-        .where('artId', isEqualTo: artId)
-        .where('rating', isGreaterThan: 0)
-        .get();
+    final artRef = _db.collection('artworks').doc(artId);
 
-    double sum = 0.0;
-    int count = 0;
+    await _db.runTransaction<void>((tx) async {
+      final snap = await tx.get(artRef);
 
-    for (final doc in ratedOrdersSnap.docs) {
-      final r = doc.data()['rating'];
-      if (r is num) {
-        sum += r.toDouble();
-        count++;
-      }
-    }
+      final double oldAvg = (snap.data()?['avgRating'] ?? 0).toDouble();
+      final int oldCount = (snap.data()?['ratingCount'] ?? 0).toInt();
 
-    final double avg = count == 0 ? 0.0 : (sum / count);
+      final newCount = oldCount + 1;
+      final newAvg = ((oldAvg * oldCount) + rating) / newCount;
 
-    await _db.collection('artworks').doc(artId).set({
-      'avgRating': avg,
-      'ratingCount': count,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      tx.update(artRef, {
+        'avgRating': newAvg,
+        'ratingCount': newCount,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
 
     // optional user_ratings
-    final orderSnap = await orderRef.get();
-    final email = _asString(orderSnap.data()?['customerEmail']);
+    
 
-    if (email.isNotEmpty) {
+    final u = FirebaseAuth.instance.currentUser;
+    if (u != null) {
       await _db
           .collection('artworks')
           .doc(artId)
           .collection('user_ratings')
-          .doc(email)
+          .doc(u.uid)
           .set({
-        'rating': rating,
-        'review': review,
-        'ratedAt': FieldValue.serverTimestamp(),
-        'orderId': orderId,
-      });
+            'uid': u.uid,
+            'email': u.email, // optional
+            'rating': rating,
+            'review': review,
+            'ratedAt': FieldValue.serverTimestamp(),
+            'orderId': orderId,
+          }, SetOptions(merge: true));
     }
   }
 
@@ -491,12 +548,28 @@ class BackendService {
     return ref.id;
   }
 
+  Future<List<ArtworkOrder>> getArtworkReviews(String artworkId) async {
+    final snap = await _db
+        .collection('orders')
+        .where('artId', isEqualTo: artworkId)
+        .where('ratingLocked', isEqualTo: true)
+        .orderBy('ratedAt', descending: true)
+        .get();
+
+    return snap.docs
+        .map(_orderFromDoc)
+        .where(
+          (order) =>
+              order.rating != null || (order.review ?? "").trim().isNotEmpty,
+        )
+        .toList();
+  }
+
   Future<ArtworkRatingSummary> getArtworkRating(String artworkId) async {
     final snap = await _db
         .collection('orders')
         .where('artId', isEqualTo: artworkId)
-        .where('rating', isGreaterThan: 0)
-        .get();
+        .get(); // ✅ REMOVED .where('rating', isGreaterThan: 0)
 
     if (snap.docs.isEmpty) return const ArtworkRatingSummary(avg: 0, count: 0);
 
@@ -505,7 +578,8 @@ class BackendService {
 
     for (final doc in snap.docs) {
       final r = doc.data()['rating'];
-      if (r is num) {
+      if (r is num && r > 0) {
+        // ✅ ADDED: && r > 0
         sum += r.toDouble();
         count++;
       }
@@ -522,7 +596,9 @@ class BackendService {
     final status = _statusFromString(statusStr);
 
     final orderedAt = data['orderedAt'];
-    final orderedDate = orderedAt is Timestamp ? orderedAt.toDate() : DateTime.now();
+    final orderedDate = orderedAt is Timestamp
+        ? orderedAt.toDate()
+        : DateTime.now();
 
     final String imgUrl = _asString(
       data['imageUrl'],
@@ -533,8 +609,9 @@ class BackendService {
     final addressId = data['addressId']?.toString();
 
     final addressSnapshot = data['addressSnapshot'];
-    final Map<String, dynamic>? addressSnap =
-        addressSnapshot is Map ? Map<String, dynamic>.from(addressSnapshot) : null;
+    final Map<String, dynamic>? addressSnap = addressSnapshot is Map
+        ? Map<String, dynamic>.from(addressSnapshot)
+        : null;
 
     final bool ratingLocked = data['ratingLocked'] == true;
 
@@ -550,17 +627,27 @@ class BackendService {
       address: address.isEmpty ? null : address,
       addressId: addressId,
       addressSnapshot: addressSnap,
-      sizeCm: _asString(data['size_cm'], fallback: _asString(data['sizeCm'])).isEmpty
+      sizeCm:
+          _asString(
+            data['size_cm'],
+            fallback: _asString(data['sizeCm']),
+          ).isEmpty
           ? null
           : _asString(data['size_cm'], fallback: _asString(data['sizeCm'])),
-      sizeIn: _asString(data['size_in'], fallback: _asString(data['sizeIn'])).isEmpty
+      sizeIn:
+          _asString(
+            data['size_in'],
+            fallback: _asString(data['sizeIn']),
+          ).isEmpty
           ? null
           : _asString(data['size_in'], fallback: _asString(data['sizeIn'])),
       status: status,
       orderedAt: orderedDate,
       rating: data['rating'] is num ? (data['rating'] as num).toInt() : null,
       review: data['review']?.toString(),
-      ratedAt: data['ratedAt'] is Timestamp ? (data['ratedAt'] as Timestamp).toDate() : null,
+      ratedAt: data['ratedAt'] is Timestamp
+          ? (data['ratedAt'] as Timestamp).toDate()
+          : null,
       ratingLocked: ratingLocked,
     );
   }

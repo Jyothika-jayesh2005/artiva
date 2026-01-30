@@ -16,6 +16,8 @@ class ExhibitionScreen extends StatefulWidget {
 class _ExhibitionScreenState extends State<ExhibitionScreen> {
   final BackendService backend = BackendService();
 
+  static const Color accent = Color(0xFFE16417);
+
   Future<List<Exhibition>> _load() async {
     return backend.getExhibitions(); // active only
   }
@@ -45,10 +47,13 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
             return const Center(child: Text("No exhibitions yet"));
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: list.length,
-            itemBuilder: (_, i) => _exhibitionCard(list[i]),
+          return RefreshIndicator(
+            onRefresh: () async => setState(() {}),
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: list.length,
+              itemBuilder: (_, i) => _exhibitionCard(list[i]),
+            ),
           );
         },
       ),
@@ -57,6 +62,9 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
 
   Widget _exhibitionCard(Exhibition e) {
     final remaining = e.remainingSeats;
+    final soldOut = remaining <= 0;
+
+    final totalSeats = e.totalSeats;
 
     return GestureDetector(
       onTap: () async {
@@ -68,107 +76,227 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
         );
         if (mounted) setState(() {}); // refresh after booking
       },
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: _image(e.imageUrl),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // -------- IMAGE TOP --------
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      e.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+              child: Stack(
+                children: [
+                  SizedBox(
+                    height: 180,
+                    width: double.infinity,
+                    child: _imageWide(e.imageUrl),
+                  ),
+
+                  // Status pill
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: _statusPill(
+                      text: soldOut ? "Sold out" : "Active",
+                      color: soldOut ? Colors.red : Colors.green,
                     ),
-                    const SizedBox(height: 6),
-                    Text(e.venue, style: const TextStyle(color: Colors.grey)),
-                    const SizedBox(height: 6),
-                    Text(
-                      _formatDateTime(e.dateTime),
-                      style: const TextStyle(color: Colors.black54),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      remaining > 0 ? "Seats left: $remaining" : "Sold out",
-                      style: TextStyle(
-                        color: remaining > 0 ? Colors.green : Colors.red,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const Icon(Icons.chevron_right),
-            ],
-          ),
+            ),
+
+            // -------- DETAILS --------
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title
+                  Text(
+                    e.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Date row
+                  _metaRow(
+                    icon: Icons.calendar_month,
+                    text: _formatDateTime(e.dateTime),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Venue row
+                  _metaRow(
+                    icon: Icons.location_on,
+                    text: e.venue,
+                  ),
+
+                  const SizedBox(height: 12),
+                  Divider(color: Colors.black.withOpacity(0.08), height: 1),
+                  const SizedBox(height: 10),
+
+                  // Bottom stats
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _stat(
+                          icon: Icons.event_seat,
+                          label: soldOut
+                              ? "Seats: 0 / $totalSeats"
+                              : "Seats: $remaining / $totalSeats",
+                          valueColor: soldOut ? Colors.red : Colors.green,
+                        ),
+                      ),
+                      Expanded(
+                        child: _stat(
+                          icon: Icons.payments,
+                          label: "₹${e.pricePerSeat} / seat",
+                          valueColor: accent,
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _image(String urlOrAsset) {
+  Widget _statusPill({required String text, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.92),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _metaRow({required IconData icon, required String text}) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: accent),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13.5,
+              color: Color(0xFF4B5563),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _stat({
+    required IconData icon,
+    required String label,
+    required Color valueColor,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: valueColor),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12.8,
+              fontWeight: FontWeight.w800,
+              color: valueColor == accent ? const Color(0xFF1F2937) : valueColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _imageWide(String urlOrAsset) {
     final p = urlOrAsset.trim();
 
     if (p.isEmpty) {
-      return _imgErr();
+      return _imgErrWide();
     }
 
-    // assets support (optional)
     if (p.startsWith("assets/")) {
       return Image.asset(
         p,
-        width: 90,
-        height: 110,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _imgErr(),
+        errorBuilder: (_, __, ___) => _imgErrWide(),
       );
     }
 
-    // ✅ Cloudinary / network
     if (p.startsWith("http")) {
       return Image.network(
         p,
-        width: 90,
-        height: 110,
         fit: BoxFit.cover,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
-          return const SizedBox(
-            width: 90,
-            height: 110,
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          );
+          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
         },
-        errorBuilder: (_, __, ___) => _imgErr(),
+        errorBuilder: (_, __, ___) => _imgErrWide(),
       );
     }
 
-    return _imgErr(text: "Invalid image");
+    return _imgErrWide(text: "Invalid image");
   }
 
-  Widget _imgErr({String text = "No image"}) {
+  Widget _imgErrWide({String text = "No image"}) {
     return Container(
-      width: 90,
-      height: 110,
       color: Colors.grey.shade200,
       alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.image_not_supported),
-          const SizedBox(height: 4),
-          Text(text, style: const TextStyle(fontSize: 11)),
+          const SizedBox(height: 6),
+          Text(text, style: const TextStyle(fontSize: 12)),
         ],
       ),
     );

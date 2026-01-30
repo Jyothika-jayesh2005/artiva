@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:artiva/customer/artwork_list.dart';
 import 'package:artiva/customer/exhibition_screen.dart';
 import 'package:artiva/customer/home_screen.dart';
-import 'package:artiva/auth/auth_service.dart';
-import 'package:artiva/backend/models.dart';
+
 
 
 class CustomerScaffold extends StatelessWidget {
