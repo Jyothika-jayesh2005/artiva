@@ -667,15 +667,15 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
           ),
 
           // Rating score
-          const SizedBox(height: 6),
-          Text(
-            "${review.rating}/5 Stars",
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Colors.orange.shade700,
-              fontSize: 12,
-            ),
-          ),
+          // const SizedBox(height: 6),
+          // Text(
+          //   "${review.rating}/5 Stars",
+          //   style: TextStyle(
+          //     fontWeight: FontWeight.w600,
+          //     color: Colors.orange.shade700,
+          //     fontSize: 12,
+          //   ),
+          // ),
 
           // Review text
           if (review.review.trim().isNotEmpty) ...[

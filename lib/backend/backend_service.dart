@@ -107,6 +107,12 @@ class BackendService {
     return snap.docs.map((d) => {...d.data(), "id": d.id}).toList();
   }
 
+  Future<Map<String, dynamic>?> getArtworkById(String id) async {
+    final doc = await _db.collection('artworks').doc(id).get();
+    if (!doc.exists) return null;
+    return {...doc.data()!, "id": doc.id};
+  }
+
   Future<void> reduceStockAfterOrder({
     required String artworkId,
     required int qty,
@@ -523,6 +529,75 @@ class BackendService {
             'orderId': orderId,
           }, SetOptions(merge: true));
     }
+  }
+
+  // ✅ SECURE TRANSACTION: Create Order + Reduce Stock + Verify Price
+  Future<String> placeOrderTransaction({
+    required String userId,
+    required String artworkId,
+    required int quantity,
+    required String address,
+    String? addressId,
+    Map<String, dynamic>? addressSnapshot,
+    required String customerName,
+    required String customerEmail,
+    String? sizeCm,
+    String? sizeIn,
+  }) async {
+    return _db.runTransaction<String>((tx) async {
+      // 1. Get Artwork (Lock it)
+      final artRef = _db.collection('artworks').doc(artworkId);
+      final artSnap = await tx.get(artRef);
+
+      if (!artSnap.exists) {
+        throw Exception("Artwork not found.");
+      }
+
+      final data = artSnap.data()!;
+      final title = _asString(data['title'], fallback: 'Artwork');
+      final price = _asInt(data['price']); // Trust DB price
+      final total = _asInt(data['totalQuantity']);
+      final sold = _asInt(data['soldQuantity']);
+      final image = _asString(data['imageUrl'], fallback: _asString(data['imagePath']));
+
+      // 2. Check Stock
+      if ((total - sold) < quantity) {
+        throw Exception("Out of stock. Only ${total - sold} left.");
+      }
+
+      // 3. Prepare Order
+      final orderRef = _db.collection('orders').doc();
+      final payload = <String, dynamic>{
+        'userId': userId,
+        'artId': artworkId,
+        'artTitle': title,
+        'price': price,
+        'quantity': quantity,
+        'address': address,
+        'imageUrl': image,
+        'customerName': customerName,
+        'customerEmail': customerEmail,
+        'size_cm': sizeCm,
+        'size_in': sizeIn,
+        'status': _statusToString(OrderStatus.pending),
+        'orderedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'ratingLocked': false,
+      };
+
+      if (addressId != null) payload['addressId'] = addressId;
+      if (addressSnapshot != null) payload['addressSnapshot'] = addressSnapshot;
+
+      // 4. Writes
+      tx.set(orderRef, payload);
+
+      tx.update(artRef, {
+        'soldQuantity': sold + quantity,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return orderRef.id;
+    });
   }
 
   Future<String> createOrder({

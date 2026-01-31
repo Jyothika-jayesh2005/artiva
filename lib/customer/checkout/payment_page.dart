@@ -167,25 +167,19 @@ class _PaymentPageState extends State<PaymentPage> {
     setState(() => _loading = true);
 
     try {
-      // 1️⃣ Create order
-      final String orderId = await backend.createOrder(
+      // 1️⃣ Atomic Order Transaction (Secure)
+      final String orderId = await backend.placeOrderTransaction(
         userId: user.uid,
         artworkId: artworkId,
-        artTitle: title,
-        price: price,
         quantity: 1,
         address: widget.address,
         addressId: widget.addressId,
         addressSnapshot: widget.addressSnapshot,
-        imageUrl: imageUrl.isEmpty ? null : imageUrl,
         customerName: user.name,
         customerEmail: user.email,
-      );
-
-      // 2️⃣ 🔥 REDUCE STOCK
-      await backend.reduceStockAfterOrder(
-        artworkId: artworkId,
-        qty: 1,
+        // Optional sizes not used in this flow yet
+        sizeCm: null,
+        sizeIn: null,
       );
 
       if (!mounted) return;

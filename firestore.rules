@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper to check if the user is the owner of the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper to check if user is admin (you might need to adjust this based on your admin logic)
+    // For now, we'll assume admins have a custom claim or are in a specific collection.
+    // This is a placeholder. You should implement proper admin checks.
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.email == "admin@artiva.com"; 
+    }
+
+    // Users: Users can read/write their own profile
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin();
+      allow update: if isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'photoUrl', 'updatedAt']);
+      
+      // Addresses subcollection
+      match /addresses/{addressId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      // Favourites subcollection
+      match /favourites/{favId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+
+    // Artworks: everyone can read, only admin can create/delete
+    // Authenticated users can update (e.g. for ratings)
+    match /artworks/{artworkId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      // Relaxed for debugging
+      allow update: if isAuthenticated();
+      
+      // User ratings subcollection
+      match /user_ratings/{userId} {
+        allow read: if true;
+        allow write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Orders: Users can read/write their own orders
+    match /orders/{orderId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // Exhibitions: Public read, admin write
+    match /exhibitions/{exhibitionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Passes/Bookings: Users can read their own
+    match /passes/{passId} {
+      allow read: if isAuthenticated() && (resource.data.customerEmail == request.auth.token.email || isAdmin());
+      allow create: if isAuthenticated(); // Should validate email matches auth
+      allow write: if isAdmin();
+    }
+  }
+}

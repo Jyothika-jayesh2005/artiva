@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/customer/home_screen.dart';
+import 'package:artiva/customer/artwork_detail.dart';
 
 import 'package:artiva/auth/auth_service.dart';
 import 'package:artiva/backend/backend_service.dart';
@@ -21,6 +22,13 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
   final BackendService backend = BackendService();
 
   List<ArtworkOrder>? _orders; // 🔥 LOCAL STATE
+  late Future<List<ArtworkOrder>> _ordersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _ordersFuture = _loadMyOrders();
+  }
 
   void _goHome(BuildContext context) {
     Navigator.pushAndRemoveUntil(
@@ -60,7 +68,7 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
         currentIndex: -1,
         title: "My Orders",
         body: FutureBuilder<List<ArtworkOrder>>(
-          future: _loadMyOrders(),
+          future: _ordersFuture,
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -97,110 +105,141 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     final hasReview =
         order.rating != null || (order.review ?? "").trim().isNotEmpty;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _orderImage(order.imageUrl),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      order.artTitle,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      "₹${order.price}",
-                      style: const TextStyle(
-                        color: Color(0xFFE16417),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      "Ordered on ${_formatDate(order.orderedAt)}",
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 8),
-                    _statusChip(order.status),
-                  ],
-                ),
-              ),
-            ],
-          ),
+    return InkWell(
+      onTap: () async {
+        final artId = order.artId;
+        if (artId == null || artId.isEmpty) return;
 
-          if (hasReview) ...[
-            const SizedBox(height: 12),
-            const Divider(),
+        setState(() => _busy = true);
+        try {
+          final art = await backend.getArtworkById(artId);
+          if (art != null && mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ArtworkDetailsPage(artwork: art),
+              ),
+            );
+          } else if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Artwork no longer available")),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Error: ${e.toString()}")),
+            );
+          }
+        } finally {
+          if (mounted) setState(() => _busy = false);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12),
+          ],
+        ),
+        child: Column(
+          children: [
             Row(
               children: [
-                _starsRow(order.rating ?? 0),
-                const SizedBox(width: 8),
-                Text(
-                  "${order.rating}/5",
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const Spacer(),
-                if (order.ratedAt != null)
-                  Text(
-                    _formatDate(order.ratedAt!),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                _orderImage(order.imageUrl),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.artTitle,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "₹${order.price}",
+                        style: const TextStyle(
+                          color: Color(0xFFE16417),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "Ordered on ${_formatDate(order.orderedAt)}",
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 8),
+                      _statusChip(order.status),
+                    ],
                   ),
+                ),
               ],
             ),
-            if ((order.review ?? "").trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "\"${order.review!.trim()}\"",
-                  style: const TextStyle(fontStyle: FontStyle.italic),
+
+            if (hasReview) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              Row(
+                children: [
+                  _starsRow(order.rating ?? 0),
+                  const SizedBox(width: 8),
+                  Text(
+                    "${order.rating}/5",
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  if (order.ratedAt != null)
+                    Text(
+                      _formatDate(order.ratedAt!),
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                ],
+              ),
+              if ((order.review ?? "").trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "\"${order.review!.trim()}\"",
+                    style: const TextStyle(fontStyle: FontStyle.italic),
+                  ),
+                ),
+              ],
+            ],
+
+            if (canRate) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: _busy ? null : () => _openRatingDialog(order),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE16417),
+                    disabledBackgroundColor: Colors.grey.shade400,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    _busy ? "PLEASE WAIT..." : "Rate This Order",
+                    style: TextStyle(
+                      color: _busy ? Colors.black54 : Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ],
           ],
-
-          if (canRate) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: ElevatedButton(
-                onPressed: _busy ? null : () => _openRatingDialog(order),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE16417),
-                  disabledBackgroundColor: Colors.grey.shade400,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  _busy ? "PLEASE WAIT..." : "Rate This Order",
-                  style: TextStyle(
-                    color: _busy ? Colors.black54 : Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -294,8 +333,16 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
       if (mounted) setState(() {});
 
 
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
-      if (!mounted) return; // 🔥 ADD THIS LINE
+      if (!mounted) return;
       setState(() => _busy = false);
     }
   }

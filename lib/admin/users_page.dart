@@ -54,7 +54,11 @@ class UsersListBody extends StatelessWidget {
           );
         }
 
-        final users = snapshot.data!.docs;
+        final users = snapshot.data!.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final email = (data['email'] ?? '').toString().toLowerCase();
+          return email != 'admin@artiva.com';
+        }).toList();
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
