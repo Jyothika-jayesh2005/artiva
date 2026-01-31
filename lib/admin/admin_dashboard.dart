@@ -32,9 +32,29 @@ class _AdminDashboardState extends State<AdminDashboard> {
   int _index = 0;
 
   Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to logout?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Logout", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
     await authService.logout();
     if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/login');
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
   void _setMode(AdminMode next) {
@@ -396,8 +416,6 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome> {
             child: (isArtwork)
                 ? UsersListBody(filter: _userFilter)
                 : ExhibitionManagementBody(filter: _exFilter),
-
-
           ),
         ],
       ),

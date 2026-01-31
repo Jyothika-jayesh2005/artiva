@@ -30,10 +30,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              "Logout",
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text("Logout", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -44,11 +41,7 @@ class ProfileScreen extends StatelessWidget {
     await authService.logout();
     if (!context.mounted) return;
 
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/',
-      (route) => false,
-    );
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
   @override
@@ -74,11 +67,11 @@ class ProfileScreen extends StatelessWidget {
                     CircleAvatar(
                       radius: 42,
                       backgroundColor: Colors.white,
-                      backgroundImage:
-                          photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                      backgroundImage: photoUrl.isNotEmpty
+                          ? NetworkImage(photoUrl)
+                          : null,
                       child: photoUrl.isEmpty
-                          ? const Icon(Icons.person,
-                              size: 42, color: primary)
+                          ? const Icon(Icons.person, size: 42, color: primary)
                           : null,
                     ),
                     const SizedBox(height: 10),
@@ -190,7 +183,11 @@ class ProfileScreen extends StatelessWidget {
           child: Icon(icon, color: primary),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.grey,
+        ),
         onTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => page));
         },
