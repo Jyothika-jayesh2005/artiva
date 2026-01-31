@@ -47,9 +47,13 @@ service cloud.firestore {
       allow update: if isAuthenticated();
       
       // User ratings subcollection
-      match /user_ratings/{userId} {
+      match /user_ratings/{orderId} {
         allow read: if true;
-        allow write: if isOwner(userId) || isAdmin();
+        // Allow write if the user owns the order or is admin
+        allow write: if isAdmin() || (
+          isAuthenticated() && 
+          get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid
+        );
       }
     }
 

@@ -46,8 +46,7 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
 
     final uid = user.uid;
     final list = await backend.getMyOrdersByUid(uid);
-
-    _orders = list.reversed.toList();
+    _orders = list;
     return _orders!;
   }
 

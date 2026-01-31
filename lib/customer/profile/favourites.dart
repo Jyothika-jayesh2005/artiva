@@ -13,34 +13,46 @@ class FavouritesPage extends StatelessWidget {
     final user = authService.currentUser;
     if (user == null) return const Stream.empty();
 
+    // 1️⃣ Listen to the favourites subcollection
     return FirebaseFirestore.instance
         .collection("users")
         .doc(user.uid)
         .collection("favourites")
         .orderBy("createdAt", descending: true)
         .snapshots()
-        .map((snap) {
-          return snap.docs.map((d) {
-            final data = d.data();
+        .asyncMap((snap) async {
+          final List<Map<String, dynamic>> results = [];
 
-            final id = (data["artworkId"] ?? d.id).toString();
+          for (var d in snap.docs) {
+            final favData = d.data();
+            final artId = (favData["artworkId"] ?? d.id).toString();
 
-            // ✅ Normalize image fields so ArtworkCard + Details can display
-            final imageAny =
-                (data["image"] ??
-                        data["imageAny"] ??
-                        data["imageUrl"] ??
-                        data["imagePath"] ??
-                        "")
-                    .toString();
+            // 2️⃣ Fetch the full artwork doc for each favourite
+            final artDoc = await FirebaseFirestore.instance
+                .collection("artworks")
+                .doc(artId)
+                .get();
 
-            return {
-              ...data,
-              "id": id,
-              "imageUrl": imageAny.startsWith("http") ? imageAny : "",
-              "imagePath": imageAny.startsWith("http") ? "" : imageAny,
-            };
-          }).toList();
+            if (artDoc.exists) {
+              final artData = artDoc.data()!;
+              
+              // 3️⃣ Normalize image fields
+              final imageAny = (artData["imageUrl"] ??
+                      artData["image"] ??
+                      artData["imagePath"] ??
+                      "")
+                  .toString();
+
+              results.add({
+                ...artData,
+                "id": artId,
+                "imageUrl": imageAny.startsWith("http") ? imageAny : "",
+                "imagePath": imageAny.startsWith("http") ? "" : imageAny,
+                "favCreatedAt": favData["createdAt"], // Keep the fav timestamp
+              });
+            }
+          }
+          return results;
         });
   }
 

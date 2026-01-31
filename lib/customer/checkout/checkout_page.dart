@@ -43,9 +43,10 @@ class CheckoutPage extends StatelessWidget {
               title: Text(title.toString()),
               subtitle: Text(category.toString()),
               trailing: Text(
-                price.toString(),
+                "₹${price.toString()}",
                 style: const TextStyle(
-                  fontWeight: FontWeight.bold,
+                  fontSize: 18, // ✅ bigger
+                  fontWeight: FontWeight.w800,
                   color: Color(0xFFE16417),
                 ),
               ),
@@ -81,6 +82,10 @@ class CheckoutPage extends StatelessWidget {
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE16417),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 child: const Text("Proceed to Payment"),
               ),

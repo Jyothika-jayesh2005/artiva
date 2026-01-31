@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:artiva/backend/models.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:artiva/auth/auth_service.dart';
 
 class PublicReview {
   final String uid;
@@ -412,13 +413,13 @@ class BackendService {
         });
       }
 
-      if (userId.isNotEmpty && artId.isNotEmpty) {
+      if (artId.isNotEmpty) {
         tx.delete(
           _db
               .collection('artworks')
               .doc(artId)
               .collection('user_ratings')
-              .doc(userId),
+              .doc(orderId), // ✅ Use orderId instead of userId
         );
       }
     });
@@ -508,9 +509,15 @@ class BackendService {
 
     // ✅ WRITE PUBLIC REVIEW DOC (for ArtworkDetailsPage)
     // We need the customerName from the order.
-    final orderSnap = await orderRef.get();
-    final orderData = orderSnap.data();
-    final customerName = (orderData?['customerName'] ?? 'Customer').toString();
+    final finalOrderSnap = await orderRef.get();
+    final finalOrderData = finalOrderSnap.data();
+    
+    // Resolve name: Order Name -> User Profile Name -> Fallback
+    String reviewerName = (finalOrderData?['customerName'] ?? '').toString().trim();
+    if (reviewerName.isEmpty) {
+      final appUser = authService.currentUser;
+      reviewerName = appUser?.name ?? 'Customer';
+    }
 
     final u = FirebaseAuth.instance.currentUser;
     if (u != null) {
@@ -518,11 +525,11 @@ class BackendService {
           .collection('artworks')
           .doc(artId)
           .collection('user_ratings')
-          .doc(u.uid)
+          .doc(orderId) // ✅ Use orderId as DOC ID so multiple orders = multiple reviews
           .set({
             'uid': u.uid,
             'email': u.email,
-            'name': customerName, // ✅ IMPORTANT
+            'name': reviewerName,
             'rating': rating,
             'review': review,
             'ratedAt': FieldValue.serverTimestamp(),

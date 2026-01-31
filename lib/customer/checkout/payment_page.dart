@@ -45,15 +45,28 @@ class _PaymentPageState extends State<PaymentPage> {
 
             // ✅ Bigger orange price (requested)
             const SizedBox(height: 6),
-            const Text("Price", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 6),
-            Text(
-              priceText,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFE16417), // ✅ orange
-              ),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Price",
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  "₹$priceText",
+                  style: const TextStyle(
+                    fontSize: 20, // ✅ smaller
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFE16417), // ✅ orange
+                  ),
+                  textAlign: TextAlign.right,
+                ),
+              ],
             ),
 
             const SizedBox(height: 18),
@@ -151,10 +164,7 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
 
-    final title = (widget.artwork["title"] ?? "Artwork").toString();
     final priceStr = (widget.artwork["price"] ?? "0").toString();
-    final imageUrl =
-        (widget.artwork["imageUrl"] ?? widget.artwork["image"] ?? "").toString();
 
     final int price =
         int.tryParse(priceStr.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
@@ -187,9 +197,7 @@ class _PaymentPageState extends State<PaymentPage> {
       // 3️⃣ Go to success page
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => PaymentSuccessPage(orderId: orderId),
-        ),
+        MaterialPageRoute(builder: (_) => PaymentSuccessPage(orderId: orderId)),
       );
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
@@ -230,8 +238,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
