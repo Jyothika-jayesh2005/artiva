@@ -1,24 +1,24 @@
 import 'dart:ui';
+import 'package:artiva/admin/admin_dashboard.dart';
 import 'package:flutter/material.dart';
 
-import 'package:artiva/widgets/admin_scaffold.dart';
 import 'package:artiva/backend/models.dart';
 import 'package:artiva/backend/backend_service.dart';
 
 import 'add_edit_exhibition.dart';
 
-class ExhibitionManagementPage extends StatefulWidget {
-  const ExhibitionManagementPage({super.key});
+/// ✅ Use this inside AdminDashboard (no AdminScaffold here)
+class ExhibitionManagementBody extends StatefulWidget {
+  final ExhibitionDashFilter filter;
+
+  const ExhibitionManagementBody({super.key, required this.filter});
 
   @override
-  State<ExhibitionManagementPage> createState() =>
-      _ExhibitionManagementPageState();
+  State<ExhibitionManagementBody> createState() =>
+      _ExhibitionManagementBodyState();
 }
 
-class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
-  bool _showArchived = false;
-
-  // ✅ DEFINE BACKEND
+class _ExhibitionManagementBodyState extends State<ExhibitionManagementBody> {
   final BackendService backend = BackendService();
 
   Future<List<Exhibition>> _load() async {
@@ -27,83 +27,51 @@ class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AdminScaffold(
-      title: "Exhibitions",
-      showBack: true,
-      actions: [
-        IconButton(
-          onPressed: () async {
-            final ok = await Navigator.push<bool>(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const AddEditExhibitionPage(),
-              ),
-            );
-            if (ok == true && mounted) setState(() {});
-          },
-          icon: const Icon(Icons.add, color: Colors.white),
+    return Column(
+      children: [
+        Expanded(
+          child: FutureBuilder<List<Exhibition>>(
+            future: _load(),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(
+                  child: Text(
+                    snap.error.toString().replaceFirst('Exception: ', ''),
+                  ),
+                );
+              }
+
+              var list = snap.data ?? [];
+
+              if (widget.filter == ExhibitionDashFilter.active) {
+                list = list.where((e) => !e.isArchived).toList();
+              } else if (widget.filter == ExhibitionDashFilter.unarchive) {
+                list = list.where((e) => e.isArchived).toList();
+              } else if (widget.filter == ExhibitionDashFilter.soldOut) {
+                list = list.where((e) => e.remainingSeats <= 0).toList();
+              }
+              // all = no filtering
+
+              if (list.isEmpty) {
+                return const Center(child: Text("No exhibitions"));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: list.length,
+                itemBuilder: (_, i) => _card(context, list[i]),
+              );
+            },
+          ),
         ),
       ],
-      body: Column(
-        children: [
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _showArchived ? "Showing: All" : "Showing: Active only",
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                Switch(
-                  value: _showArchived,
-                  onChanged: (v) => setState(() => _showArchived = v),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<Exhibition>>(
-              future: _load(),
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snap.hasError) {
-                  return Center(
-                    child: Text(
-                      snap.error
-                          .toString()
-                          .replaceFirst('Exception: ', ''),
-                    ),
-                  );
-                }
-
-                var list = snap.data ?? [];
-                if (!_showArchived) {
-                  list = list.where((e) => !e.isArchived).toList();
-                }
-
-                if (list.isEmpty) {
-                  return const Center(child: Text("No exhibitions"));
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: list.length,
-                  itemBuilder: (_, i) => _card(list[i]),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _card(Exhibition ex) {
+  Widget _card(BuildContext context, Exhibition ex) {
     final remaining = ex.remainingSeats;
 
     return Container(
@@ -167,23 +135,31 @@ class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
                               !ex.isArchived,
                             );
                             if (mounted) setState(() {});
-                            _snack(
-                              ex.isArchived ? "Unarchived" : "Archived",
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  ex.isArchived ? "Unarchived" : "Archived",
+                                ),
+                              ),
                             );
                           } catch (e) {
-                            _snack(
-                              e.toString()
-                                  .replaceFirst('Exception: ', ''),
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e.toString().replaceFirst('Exception: ', ''),
+                                ),
+                              ),
                             );
                           }
                         },
                         icon: Icon(
-                          ex.isArchived
-                              ? Icons.unarchive
-                              : Icons.archive,
+                          ex.isArchived ? Icons.unarchive : Icons.archive,
                         ),
                         label: Text(
                           ex.isArchived ? "Unarchive" : "Archive",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
                         ),
                       ),
                     ),
@@ -197,15 +173,8 @@ class _ExhibitionManagementPageState extends State<ExhibitionManagementPage> {
     );
   }
 
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
-  }
-
   String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  "
-        "${two(dt.hour)}:${two(dt.minute)}";
+    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  ${two(dt.hour)}:${two(dt.minute)}";
   }
 }

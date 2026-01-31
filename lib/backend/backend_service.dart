@@ -2,6 +2,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:artiva/backend/models.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+class PublicReview {
+  final String uid;
+  final String name;
+  final int rating;
+  final String review;
+  final DateTime? ratedAt;
+
+  const PublicReview({
+    required this.uid,
+    required this.name,
+    required this.rating,
+    required this.review,
+    required this.ratedAt,
+  });
+}
+
 class BackendService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -348,55 +364,56 @@ class BackendService {
     final orderRef = _db.collection('orders').doc(orderId);
 
     await _db.runTransaction<void>((tx) async {
+      // 🔹 READS FIRST (MANDATORY)
       final orderSnap = await tx.get(orderRef);
       if (!orderSnap.exists) throw Exception("Order not found.");
 
-      final data = orderSnap.data() as Map<String, dynamic>;
+      final data = orderSnap.data()!;
       final artId = (data['artId'] ?? '').toString().trim();
       final rating = data['rating'];
-      
+      final userId = (data['userId'] ?? '').toString().trim();
 
-      // ✅ Mark as deleted so customer cannot review again
+      DocumentSnapshot<Map<String, dynamic>>? artSnap;
+      DocumentReference<Map<String, dynamic>>? artRef;
+
+      if (rating is num && rating > 0 && artId.isNotEmpty) {
+        artRef = _db.collection('artworks').doc(artId);
+        artSnap = await tx.get(artRef); // ✅ READ BEFORE WRITE
+      }
+
+      // 🔹 NOW WRITES (SAFE)
       tx.update(orderRef, {
         'rating': FieldValue.delete(),
         'review': FieldValue.delete(),
         'ratedAt': FieldValue.delete(),
-        'reviewDeleted': true, // ✅ NEW: Track that review was deleted
+        'reviewDeleted': true,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // ✅ Recompute average rating if there was a rating
-      if (rating is num && rating > 0 && artId.isNotEmpty) {
-        final artRef = _db.collection('artworks').doc(artId);
-        final artSnap = await tx.get(artRef);
+      if (artSnap != null && artRef != null) {
+        final oldAvg = (artSnap.data()?['avgRating'] ?? 0).toDouble();
+        final oldCount = (artSnap.data()?['ratingCount'] ?? 0).toInt();
 
-        final double oldAvg = (artSnap.data()?['avgRating'] ?? 0).toDouble();
-        final int oldCount = (artSnap.data()?['ratingCount'] ?? 0).toInt();
+        final newCount = (oldCount - 1).clamp(0, oldCount);
+        final newAvg = newCount == 0
+            ? 0.0
+            : ((oldAvg * oldCount) - rating.toDouble()) / newCount;
 
-        if (oldCount > 0) {
-          final newCount = oldCount - 1;
-          final newAvg = newCount == 0
-              ? 0.0
-              : ((oldAvg * oldCount) - rating.toDouble()) / newCount;
+        tx.update(artRef, {
+          'avgRating': newAvg,
+          'ratingCount': newCount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
 
-          tx.update(artRef, {
-            'avgRating': newAvg,
-            'ratingCount': newCount,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-        }
-        final userId = _asString(data['userId']).trim();
-
-        // ✅ Remove from user_ratings subcollection (doc id = uid)
-        if (userId.isNotEmpty && artId.isNotEmpty) {
-          tx.delete(
-            _db
-                .collection('artworks')
-                .doc(artId)
-                .collection('user_ratings')
-                .doc(userId),
-          );
-        }
+      if (userId.isNotEmpty && artId.isNotEmpty) {
+        tx.delete(
+          _db
+              .collection('artworks')
+              .doc(artId)
+              .collection('user_ratings')
+              .doc(userId),
+        );
       }
     });
   }
@@ -482,7 +499,12 @@ class BackendService {
     });
 
     // optional user_ratings
-    
+
+    // ✅ WRITE PUBLIC REVIEW DOC (for ArtworkDetailsPage)
+    // We need the customerName from the order.
+    final orderSnap = await orderRef.get();
+    final orderData = orderSnap.data();
+    final customerName = (orderData?['customerName'] ?? 'Customer').toString();
 
     final u = FirebaseAuth.instance.currentUser;
     if (u != null) {
@@ -493,7 +515,8 @@ class BackendService {
           .doc(u.uid)
           .set({
             'uid': u.uid,
-            'email': u.email, // optional
+            'email': u.email,
+            'name': customerName, // ✅ IMPORTANT
             'rating': rating,
             'review': review,
             'ratedAt': FieldValue.serverTimestamp(),
@@ -565,28 +588,49 @@ class BackendService {
         .toList();
   }
 
-  Future<ArtworkRatingSummary> getArtworkRating(String artworkId) async {
+  // ✅ NEW: PUBLIC REVIEWS (from artworks/{artId}/user_ratings)
+  Future<List<PublicReview>> getArtworkPublicReviews(String artworkId) async {
     final snap = await _db
-        .collection('orders')
-        .where('artId', isEqualTo: artworkId)
-        .get(); // ✅ REMOVED .where('rating', isGreaterThan: 0)
+        .collection('artworks')
+        .doc(artworkId)
+        .collection('user_ratings')
+        .orderBy('ratedAt', descending: true)
+        .get();
 
-    if (snap.docs.isEmpty) return const ArtworkRatingSummary(avg: 0, count: 0);
+    return snap.docs
+        .map((d) {
+          final data = d.data();
+          final ts = data['ratedAt'];
 
-    double sum = 0;
-    int count = 0;
+          return PublicReview(
+            uid: d.id,
+            name: (data['name'] ?? 'Customer').toString(),
+            rating: (data['rating'] is num)
+                ? (data['rating'] as num).toInt()
+                : 0,
+            review: (data['review'] ?? '').toString(),
+            ratedAt: ts is Timestamp ? ts.toDate() : null,
+          );
+        })
+        .where((r) => r.rating > 0 || r.review.trim().isNotEmpty)
+        .toList();
+  }
 
-    for (final doc in snap.docs) {
-      final r = doc.data()['rating'];
-      if (r is num && r > 0) {
-        // ✅ ADDED: && r > 0
-        sum += r.toDouble();
-        count++;
-      }
-    }
+  Future<ArtworkRatingSummary> getArtworkRatingFromArtworkDoc(
+    String artworkId,
+  ) async {
+    final doc = await _db.collection('artworks').doc(artworkId).get();
+    if (!doc.exists) return const ArtworkRatingSummary(avg: 0, count: 0);
 
-    if (count == 0) return const ArtworkRatingSummary(avg: 0, count: 0);
-    return ArtworkRatingSummary(avg: sum / count, count: count);
+    final data = doc.data()!;
+    final avg = (data['avgRating'] is num)
+        ? (data['avgRating'] as num).toDouble()
+        : 0.0;
+    final count = (data['ratingCount'] is num)
+        ? (data['ratingCount'] as num).toInt()
+        : 0;
+
+    return ArtworkRatingSummary(avg: avg, count: count);
   }
 
   ArtworkOrder _orderFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> d) {

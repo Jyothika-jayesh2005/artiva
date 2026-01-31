@@ -8,7 +8,7 @@ import 'package:artiva/widgets/customer_scaffold.dart';
 
 import 'package:artiva/auth/auth_service.dart';
 import 'package:artiva/backend/backend_service.dart';
-import 'package:artiva/backend/models.dart';
+
 
 class ArtworkDetailsPage extends StatefulWidget {
   final Map<String, dynamic> artwork;
@@ -115,15 +115,17 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
     final title = (widget.artwork["title"] ?? "Artwork").toString();
 
     final int priceValue = _priceAsInt(widget.artwork["price"]);
-    final String priceText =
-        priceValue > 0 ? _formatIndianCurrency(priceValue) : "-";
+    final String priceText = priceValue > 0
+        ? _formatIndianCurrency(priceValue)
+        : "-";
 
     // ✅ prefer Firestore URL first
-    final imageAny = (widget.artwork["imageUrl"] ??
-            widget.artwork["imagePath"] ??
-            widget.artwork["image"] ??
-            "assets/placeholder.png")
-        .toString();
+    final imageAny =
+        (widget.artwork["imageUrl"] ??
+                widget.artwork["imagePath"] ??
+                widget.artwork["image"] ??
+                "assets/placeholder.png")
+            .toString();
 
     final category = (widget.artwork["category"] ?? "-").toString();
     final description = (widget.artwork["description"] ?? "").toString();
@@ -135,6 +137,19 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
     final int remainingQty = (totalQty - soldQty).clamp(0, totalQty);
 
     final favRef = _favRef();
+    // ✅ Rating values from artwork map (same as ArtworkCard)
+    final double avgRating = (widget.artwork["avgRating"] is num)
+        ? (widget.artwork["avgRating"] as num).toDouble()
+        : double.tryParse((widget.artwork["avgRating"] ?? "").toString()) ??
+              0.0;
+
+    final int ratingCount = (widget.artwork["ratingCount"] is num)
+        ? (widget.artwork["ratingCount"] as num).toInt()
+        : int.tryParse((widget.artwork["ratingCount"] ?? "").toString()) ?? 0;
+
+    final String ratingText = ratingCount == 0
+        ? "—"
+        : "${avgRating.toStringAsFixed(1)} ($ratingCount)";
 
     return CustomerScaffold(
       currentIndex: -1,
@@ -165,29 +180,31 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                         right: 12,
                         child: CircleAvatar(
                           backgroundColor: Colors.white,
-                          child: StreamBuilder<
-                              DocumentSnapshot<Map<String, dynamic>>>(
-                            stream: (favRef == null || id.isEmpty)
-                                ? const Stream.empty()
-                                : favRef.snapshots(),
-                            builder: (context, snap) {
-                              final isFav = snap.data?.exists ?? false;
+                          child:
+                              StreamBuilder<
+                                DocumentSnapshot<Map<String, dynamic>>
+                              >(
+                                stream: (favRef == null || id.isEmpty)
+                                    ? const Stream.empty()
+                                    : favRef.snapshots(),
+                                builder: (context, snap) {
+                                  final isFav = snap.data?.exists ?? false;
 
-                              return IconButton(
-                                icon: Icon(
-                                  isFav
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  color: const Color(0xFFE16417),
-                                ),
-                                onPressed: () => _toggleFavourite(
-                                  title: title,
-                                  priceText: priceText,
-                                  imageAny: imageAny,
-                                ),
-                              );
-                            },
-                          ),
+                                  return IconButton(
+                                    icon: Icon(
+                                      isFav
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: const Color(0xFFE16417),
+                                    ),
+                                    onPressed: () => _toggleFavourite(
+                                      title: title,
+                                      priceText: priceText,
+                                      imageAny: imageAny,
+                                    ),
+                                  );
+                                },
+                              ),
                         ),
                       ),
                     ],
@@ -221,24 +238,9 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                           ),
 
                           // ⭐ overall rating
-                          FutureBuilder<ArtworkRatingSummary>(
-                            future: backend.getArtworkRating(id),
-                            builder: (context, snap) {
-                              if (snap.connectionState ==
-                                  ConnectionState.waiting) {
-                                return _badge(Icons.star, "—", Colors.orange);
-                              }
-                              if (snap.hasError) {
-                                return _badge(Icons.star, "—", Colors.orange);
-                              }
-                              final r = snap.data ??
-                                  const ArtworkRatingSummary(avg: 0, count: 0);
-
-                              final text =
-                                  r.count == 0 ? "—" : "${r.label} (${r.count})";
-                              return _badge(Icons.star, text, Colors.orange);
-                            },
-                          ),
+                          
+                          // ⭐ rating badge (STATIC FROM ARTWORK DOC)
+                              _badge(Icons.star, ratingText, Colors.orange),
                         ],
                       ),
 
@@ -250,8 +252,11 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                           builder: (context, snap) {
                             final myR = snap.data;
                             if (myR == null) return const SizedBox.shrink();
-                            return _badge(Icons.person, "You: $myR/5",
-                                Colors.blueGrey);
+                            return _badge(
+                              Icons.person,
+                              "You: $myR/5",
+                              Colors.blueGrey,
+                            );
                           },
                         ),
 
@@ -259,8 +264,10 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
 
                       Text(
                         category,
-                        style:
-                            const TextStyle(fontSize: 14, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
                       ),
 
                       const SizedBox(height: 6),
@@ -271,8 +278,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                                 ? Icons.check_circle
                                 : Icons.cancel,
                             size: 16,
-                            color:
-                                remainingQty > 0 ? Colors.green : Colors.red,
+                            color: remainingQty > 0 ? Colors.green : Colors.red,
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -338,10 +344,14 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
 
                       Row(
                         children: [
-                          _spec("Size (cm)",
-                              (widget.artwork["size_cm"] ?? "-").toString()),
-                          _spec("Size (inch)",
-                              (widget.artwork["size_in"] ?? "-").toString()),
+                          _spec(
+                            "Size (cm)",
+                            (widget.artwork["size_cm"] ?? "-").toString(),
+                          ),
+                          _spec(
+                            "Size (inch)",
+                            (widget.artwork["size_in"] ?? "-").toString(),
+                          ),
                         ],
                       ),
 
@@ -391,8 +401,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("Price",
-                          style: TextStyle(color: Colors.grey)),
+                      const Text("Price", style: TextStyle(color: Colors.grey)),
                       Text(
                         priceText,
                         style: const TextStyle(
@@ -418,7 +427,8 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                                 builder: (_) => SavedAddressPage(
                                   isFromCheckout: true,
                                   artwork: Map<String, String>.from(
-                                      safeStringMap),
+                                    safeStringMap,
+                                  ),
                                 ),
                               ),
                             );
@@ -435,8 +445,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                     ),
                     child: Text(
                       remainingQty == 0 ? "Out of Stock" : "Buy Now",
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 16),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                   ),
                 ],
@@ -531,12 +540,16 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title,
-                  style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              Text(
+                title,
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
               Text(
                 value,
                 style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -550,12 +563,12 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: const TextStyle(fontSize: 13, color: Colors.grey)),
+          Text(title, style: const TextStyle(fontSize: 13, color: Colors.grey)),
           const SizedBox(height: 4),
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w600)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );
@@ -563,8 +576,9 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
 
   // ✅ NEW: Build customer ratings section
   Widget _buildCustomerRatingsSection() {
-    return FutureBuilder<List<ArtworkOrder>>(
-      future: backend.getArtworkReviews(_artId),
+    return FutureBuilder<List<PublicReview>>(
+      future: backend.getArtworkPublicReviews(_artId),
+
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -591,7 +605,10 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
             child: const Center(
               child: Text(
                 "No ratings yet. Be the first to review!",
-                style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ),
           );
@@ -608,7 +625,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
   }
 
   // ✅ NEW: Build individual review card
-  Widget _buildReviewCard(ArtworkOrder review) {
+  Widget _buildReviewCard(PublicReview review) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -627,10 +644,10 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildStarsRow(review.rating ?? 0),
+                    _buildStarsRow(review.rating),
                     const SizedBox(height: 4),
                     Text(
-                      review.customerName,
+                      review.name,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
@@ -644,36 +661,28 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
               if (review.ratedAt != null)
                 Text(
                   _formatReviewDate(review.ratedAt!),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey,
-                  ),
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
                 ),
             ],
           ),
 
           // Rating score
-          if (review.rating != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              "${review.rating}/5 Stars",
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.orange.shade700,
-                fontSize: 12,
-              ),
+          const SizedBox(height: 6),
+          Text(
+            "${review.rating}/5 Stars",
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Colors.orange.shade700,
+              fontSize: 12,
             ),
-          ],
+          ),
 
           // Review text
-          if ((review.review ?? "").trim().isNotEmpty) ...[
+          if (review.review.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              review.review!.trim(),
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.4,
-              ),
+              review.review.trim(),
+              style: const TextStyle(fontSize: 13, height: 1.4),
               maxLines: 4,
               overflow: TextOverflow.ellipsis,
             ),

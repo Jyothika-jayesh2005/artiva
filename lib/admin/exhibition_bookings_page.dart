@@ -22,7 +22,7 @@ class _ExhibitionBookingsPageState extends State<ExhibitionBookingsPage> {
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: "Exhibition Bookings",
-      showBack: true,
+      
       body: FutureBuilder<List<ExhibitionBooking>>(
         future: backend.getAllExhibitionBookings(),
         builder: (context, snap) {

@@ -101,7 +101,7 @@ class Exhibition {
       "id": id,
       "title": title,
       "venue": venue,
-      "dateTime": dateTime.toIso8601String(),
+       "dateTime": Timestamp.fromDate(dateTime),
       "description": description,
       "totalSeats": totalSeats,
       "bookedSeats": bookedSeats,
@@ -256,13 +256,12 @@ int _toInt(dynamic v) {
 }
 
 DateTime _parseDateTime(dynamic v) {
+  if (v == null) return DateTime.now();
   if (v is DateTime) return v;
+  if (v is Timestamp) return v.toDate(); // ✅ Firestore Timestamp support
   if (v is String) {
     final dt = DateTime.tryParse(v);
     if (dt != null) return dt;
   }
-  try {
-    return v.toDate() as DateTime;
-  } catch (_) {}
   return DateTime.now();
 }

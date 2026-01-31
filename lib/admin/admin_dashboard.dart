@@ -1,3 +1,4 @@
+import 'package:artiva/admin/add_edit_exhibition.dart';
 import 'package:artiva/admin/users_page.dart';
 import 'package:artiva/widgets/admin_scaffold.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,6 +15,8 @@ import 'exhibition_bookings_page.dart';
 import 'artwork_orders_page.dart';
 
 enum AdminMode { exhibition, artwork }
+
+enum ExhibitionDashFilter { all, active, unarchive, soldOut }
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -98,7 +101,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
 
     return _NavConfig(
-      pages: [dashboardPage, bookingsPage, const ExhibitionManagementPage()],
+      pages: [
+        dashboardPage,
+        bookingsPage,
+        const AddEditExhibitionPage(), // ✅ third tab now opens add exhibition form
+      ],
       items: const [
         BottomNavigationBarItem(
           icon: Icon(Icons.dashboard_rounded),
@@ -109,8 +116,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
           label: "Bookings",
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.event_rounded),
-          label: "Exhibitions",
+          icon: Icon(Icons.add_box_rounded),
+          label: "Add",
         ),
       ],
     );
@@ -199,6 +206,7 @@ class _AdminDashboardHome extends StatefulWidget {
 
 class _AdminDashboardHomeState extends State<_AdminDashboardHome> {
   UserFilter _userFilter = UserFilter.all;
+  ExhibitionDashFilter _exFilter = ExhibitionDashFilter.all;
 
   Stream<int> _totalUsers() {
     return FirebaseFirestore.instance
@@ -314,13 +322,37 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome> {
               children: [
                 const SizedBox(width: 10),
                 if (isExhibition) ...[
-                  const _ChipLike(text: "All", active: true),
-                  const _ChipLike(text: "Upcoming", active: false),
+                  _ChipLike(
+                    text: "All",
+                    active: _exFilter == ExhibitionDashFilter.all,
+                    onTap: () =>
+                        setState(() => _exFilter = ExhibitionDashFilter.all),
+                  ),
                   const SizedBox(width: 10),
-                  const _ChipLike(text: "Completed", active: false),
+                  _ChipLike(
+                    text: "Active",
+                    active: _exFilter == ExhibitionDashFilter.active,
+                    onTap: () =>
+                        setState(() => _exFilter = ExhibitionDashFilter.active),
+                  ),
                   const SizedBox(width: 10),
-                  const _ChipLike(text: "Sold Out", active: false),
+                  _ChipLike(
+                    text: "Unarchive",
+                    active: _exFilter == ExhibitionDashFilter.unarchive,
+                    onTap: () => setState(
+                      () => _exFilter = ExhibitionDashFilter.unarchive,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _ChipLike(
+                    text: "Sold Out",
+                    active: _exFilter == ExhibitionDashFilter.soldOut,
+                    onTap: () => setState(
+                      () => _exFilter = ExhibitionDashFilter.soldOut,
+                    ),
+                  ),
                 ],
+
                 if (isArtwork) ...[
                   _ChipLike(
                     text: "All",
@@ -363,15 +395,9 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome> {
             ),
             child: (isArtwork)
                 ? UsersListBody(filter: _userFilter)
-                : const Center(
-                    child: Text(
-                      "Exhibition bookings list goes here",
-                      style: TextStyle(
-                        color: Colors.black54,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                : ExhibitionManagementBody(filter: _exFilter),
+
+
           ),
         ],
       ),
