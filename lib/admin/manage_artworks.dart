@@ -7,6 +7,8 @@ import 'package:artiva/widgets/admin_scaffold.dart';
 import 'package:artiva/backend/backend_provider.dart';
 import 'add_artwork.dart';
 
+enum StockFilter { all, inStock, outOfStock }
+
 class ManageArtworksPage extends StatefulWidget {
   const ManageArtworksPage({super.key});
 
@@ -15,6 +17,8 @@ class ManageArtworksPage extends StatefulWidget {
 }
 
 class _ManageArtworksPageState extends State<ManageArtworksPage> {
+  StockFilter _stockFilter = StockFilter.all;
+
   final TextEditingController _search = TextEditingController();
 
   static const Color accent = Color(0xFFFF8C1A);
@@ -44,16 +48,55 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
     return hay.contains(q);
   }
 
+  bool _matchesStockFilter(Map<String, dynamic> art) {
+    if (_stockFilter == StockFilter.all) return true;
+
+    final int total = _toInt(art["totalQuantity"]);
+    final int sold = _toInt(art["soldQuantity"]);
+    final int remaining = (total - sold) < 0 ? 0 : (total - sold);
+    final bool inStock = remaining > 0;
+
+    if (_stockFilter == StockFilter.inStock) return inStock;
+    if (_stockFilter == StockFilter.outOfStock) return !inStock;
+    return true;
+  }
+
+  Widget _chip(String text, StockFilter value) {
+    final bool active = _stockFilter == value;
+
+    return GestureDetector(
+      onTap: () => setState(() => _stockFilter = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: active ? accent.withOpacity(0.18) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: active ? accent : Colors.black.withOpacity(0.08),
+          ),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: active ? accent : Colors.black54,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: "Manage Artworks",
-      
+
       body: Stack(
         children: [
           Column(
             children: [
               const SizedBox(height: 10),
+              const SizedBox(height: 12),
 
               // ✅ Search bar
               Padding(
@@ -103,6 +146,21 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
               ),
 
               const SizedBox(height: 12),
+              SizedBox(
+                height: 42,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    _chip("All", StockFilter.all),
+                    const SizedBox(width: 10),
+                    _chip("In Stock", StockFilter.inStock),
+                    const SizedBox(width: 10),
+                    _chip("Out of Stock", StockFilter.outOfStock),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
 
               // ✅ List
               Expanded(
@@ -118,7 +176,12 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                     }
 
                     var artworks = snap.data ?? [];
-                    artworks = artworks.where(_matchesSearch).toList();
+
+                    // Apply both filters
+                    artworks = artworks
+                        .where(_matchesSearch)
+                        .where(_matchesStockFilter)
+                        .toList();
 
                     if (artworks.isEmpty) {
                       return const Center(child: Text("No artworks found"));
@@ -132,20 +195,22 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
 
                         final String id = (art["id"] ?? "").toString().trim();
                         final String title = (art["title"] ?? "-").toString();
-                        final String category =
-                            (art["category"] ?? "").toString();
+                        final String category = (art["category"] ?? "")
+                            .toString();
 
                         final int total = _toInt(art["totalQuantity"]);
                         final int sold = _toInt(art["soldQuantity"]);
-                        final int remaining =
-                            (total - sold) < 0 ? 0 : (total - sold);
+                        final int remaining = (total - sold) < 0
+                            ? 0
+                            : (total - sold);
 
-                        final String image = (art["imageUrl"] ??
-                                art["imagePath"] ??
-                                art["image"] ??
-                                "")
-                            .toString()
-                            .trim();
+                        final String image =
+                            (art["imageUrl"] ??
+                                    art["imagePath"] ??
+                                    art["image"] ??
+                                    "")
+                                .toString()
+                                .trim();
 
                         final int price = _toIntPrice(art["price"]);
 
@@ -329,8 +394,11 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                     const SizedBox(width: 10),
                     TextButton.icon(
                       onPressed: () => _confirmDelete(id),
-                      icon: const Icon(Icons.delete,
-                          size: 18, color: Colors.red),
+                      icon: const Icon(
+                        Icons.delete,
+                        size: 18,
+                        color: Colors.red,
+                      ),
                       label: const Text(
                         "Delete",
                         style: TextStyle(color: Colors.red),
@@ -455,9 +523,9 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                 );
               } catch (e) {
                 if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Delete failed: $e")),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text("Delete failed: $e")));
               }
             },
             child: const Text("Delete", style: TextStyle(color: Colors.red)),

@@ -20,6 +20,7 @@ class ExhibitionManagementBody extends StatefulWidget {
 
 class _ExhibitionManagementBodyState extends State<ExhibitionManagementBody> {
   final BackendService backend = BackendService();
+  static const Color accent = Color(0xFFFF8C1A);
 
   Future<List<Exhibition>> _load() async {
     return backend.getExhibitions(includeArchived: true);
@@ -83,7 +84,7 @@ class _ExhibitionManagementBodyState extends State<ExhibitionManagementBody> {
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.90),
+              color: const Color(0xFFFFF3E8).withOpacity(0.95), // light orange
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: Colors.black12),
             ),
@@ -111,6 +112,11 @@ class _ExhibitionManagementBodyState extends State<ExhibitionManagementBody> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: accent,
+                          side: const BorderSide(color: accent),
+                        ),
+
                         onPressed: () async {
                           final ok = await Navigator.push<bool>(
                             context,
@@ -128,6 +134,13 @@ class _ExhibitionManagementBodyState extends State<ExhibitionManagementBody> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ex.isArchived
+                              ? Colors.green
+                              : Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+
                         onPressed: () async {
                           try {
                             await backend.setExhibitionArchived(

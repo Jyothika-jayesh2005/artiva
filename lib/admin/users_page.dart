@@ -64,6 +64,7 @@ class UsersListBody extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           itemCount: users.length,
           itemBuilder: (context, i) {
+            
             final doc = users[i];
             final data = doc.data() as Map<String, dynamic>;
 
@@ -74,14 +75,23 @@ class UsersListBody extends StatelessWidget {
 
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
+              color: const Color(0xFFFFF3E8), // 🔥 same light orange as filters
+              elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
+                side: BorderSide(
+                  color: const Color(0xFFFF8C1A).withOpacity(0.25),
+                ),
               ),
               child: ListTile(
                 leading: CircleAvatar(
+                  backgroundColor: Colors.white,
                   child: Text(
                     name.isNotEmpty ? name[0].toUpperCase() : "?",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFFF8C1A), // ← ADD THIS
+                    ),
                   ),
                 ),
                 title: Row(

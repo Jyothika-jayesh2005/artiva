@@ -72,7 +72,10 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
   }
 
   Future<void> _pickImage() async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
     if (picked != null) {
       setState(() {
         _localImagePath = picked.path; // new picked file
@@ -84,13 +87,16 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: isEdit ? "Edit Exhibition" : "Add Exhibition",
-      showBack: true,
+
       actions: [
         TextButton(
           onPressed: _saving ? null : _save,
           child: Text(
             _saving ? "SAVING..." : "SAVE",
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
@@ -110,8 +116,12 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                     border: Border.all(color: Colors.grey),
                     color: Colors.white,
                   ),
-                  child: (_localImagePath == null && (_imageUrl == null || _imageUrl!.isEmpty))
-                      ? const Center(child: Text("Tap to upload exhibition image"))
+                  child:
+                      (_localImagePath == null &&
+                          (_imageUrl == null || _imageUrl!.isEmpty))
+                      ? const Center(
+                          child: Text("Tap to upload exhibition image"),
+                        )
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(14),
                           child: _previewImage(),
@@ -124,7 +134,8 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                 controller: _titleCtrl,
                 label: "Exhibition Title",
                 icon: Icons.title,
-                validator: (v) => (v == null || v.trim().isEmpty) ? "Title required" : null,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? "Title required" : null,
               ),
               const SizedBox(height: 12),
 
@@ -132,7 +143,8 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                 controller: _venueCtrl,
                 label: "Venue / Location",
                 icon: Icons.location_on,
-                validator: (v) => (v == null || v.trim().isEmpty) ? "Venue required" : null,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? "Venue required" : null,
               ),
               const SizedBox(height: 12),
 
@@ -141,7 +153,9 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                 label: "Description",
                 icon: Icons.description,
                 maxLines: 3,
-                validator: (v) => (v == null || v.trim().isEmpty) ? "Description required" : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? "Description required"
+                    : null,
               ),
               const SizedBox(height: 12),
 
@@ -172,11 +186,15 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
               const SizedBox(height: 16),
 
               ListTile(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 tileColor: Colors.white,
                 leading: const Icon(Icons.calendar_month),
                 title: Text(
-                  _selectedDateTime == null ? "Select Date & Time" : _formatDateTime(_selectedDateTime!),
+                  _selectedDateTime == null
+                      ? "Select Date & Time"
+                      : _formatDateTime(_selectedDateTime!),
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: _saving ? null : _pickDateTime,
@@ -271,7 +289,13 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
     if (time == null) return;
 
     setState(() {
-      _selectedDateTime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+      _selectedDateTime = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
     });
   }
 

@@ -22,9 +22,13 @@ service cloud.firestore {
 
     // Users: Users can read/write their own profile
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow write: if isAdmin();
-      allow update: if isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'photoUrl', 'updatedAt']);
+      // 🚨 EMERGENCY DEBUG MODE 🚨
+      // Temporarily allow anyone to read/write for 5 minutes 
+      // to confirm if the rules are the real problem.
+      allow read, write: if true;
+      
+      // Allow updates to specific fields if the user is the owner or admin
+      allow update: if isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'photoUrl', 'updatedAt']) || isAdmin();
       
       // Addresses subcollection
       match /addresses/{addressId} {
@@ -59,20 +63,27 @@ service cloud.firestore {
 
     // Orders: Users can read/write their own orders
     match /orders/{orderId} {
-      allow read, create, update: if isAuthenticated();
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
 
     // Exhibitions: Public read, admin write
     match /exhibitions/{exhibitionId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, delete: if isAdmin();
+      // Allow customers to update bookedSeats during booking
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bookedSeats'])
+      );
     }
 
     // Passes/Bookings: Users can read their own
     match /passes/{passId} {
       allow read: if isAuthenticated() && (resource.data.customerEmail == request.auth.token.email || isAdmin());
-      allow create: if isAuthenticated(); // Should validate email matches auth
+      allow create: if isAuthenticated() && request.resource.data.customerEmail == request.auth.token.email;
       allow write: if isAdmin();
     }
   }

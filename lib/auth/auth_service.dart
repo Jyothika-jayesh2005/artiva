@@ -134,21 +134,44 @@ class AuthService {
       final user = cred.user;
       if (user == null) throw Exception('Registration failed. Try again.');
 
+      // ✅ STEP 1: Update Auth Display Name
       await user.updateDisplayName(name);
+
+      // ✅ STEP 2: Force Token Refresh & Sync Delay
+      // This ensures Firestore "sees" the new user session immediately.
+      await user.getIdToken(true);
+      await Future.delayed(const Duration(milliseconds: 500));
 
       final DocumentReference<Map<String, dynamic>> ref = _db
           .collection('users')
           .doc(user.uid);
 
-      await ref.set({
-        'name': name,
-        'email': email.trim(),
-        'phone': phone.trim(),
-        'role': 'user',
-        'photoUrl': '',
-        'archived': false, // ✅ NEW
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      debugPrint("--- REGISTRATION DIAGNOSTICS ---");
+      debugPrint("Auth UID: ${user.uid}");
+      debugPrint("Document Path: ${ref.path}");
+      debugPrint("--------------------------------");
+
+      try {
+        // ✅ STEP 3: Create Firestore Document
+        await ref.set({
+          'name': name,
+          'email': email.trim(),
+          'phone': phone.trim(),
+          'role': 'user',
+          'photoUrl': '',
+          'archived': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        // 🚨 IF FIRESTORE FAILS: Cleanup (Delete) the Auth account
+        // This allows the user to try again with the same email after fixing rules.
+        try {
+          await user.delete();
+        } catch (cleanupError) {
+          debugPrint("Failed to delete user during cleanup: $cleanupError");
+        }
+        throw Exception("Database Error: $e");
+      }
 
       final appUser = AppUser(
         uid: user.uid,
