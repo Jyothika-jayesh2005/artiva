@@ -10,7 +10,9 @@ import 'package:artiva/services/cloudinary_service.dart';
 
 class AddEditExhibitionPage extends StatefulWidget {
   final Exhibition? existing; // null = add, not null = edit
-  const AddEditExhibitionPage({super.key, this.existing});
+  final VoidCallback? onSuccess; // ✅ Callback for tab-based add
+
+  const AddEditExhibitionPage({super.key, this.existing, this.onSuccess});
 
   @override
   State<AddEditExhibitionPage> createState() => _AddEditExhibitionPageState();
@@ -71,10 +73,25 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
     super.dispose();
   }
 
+  void _clearForm() {
+    _titleCtrl.clear();
+    _venueCtrl.clear();
+    _descCtrl.clear();
+    _totalSeatsCtrl.clear();
+    _priceCtrl.text = "100";
+    setState(() {
+      _selectedDateTime = DateTime.now().add(const Duration(days: 1));
+      _localImagePath = null;
+      _imageUrl = null;
+    });
+  }
+
   Future<void> _pickImage() async {
     final picked = await _picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 85,
+      maxWidth: 1024, // ✅ Added to reduce upload time
+      maxHeight: 1024, // ✅ Added to reduce upload time
     );
     if (picked != null) {
       setState(() {
@@ -100,116 +117,144 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
           ),
         ),
       ],
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              GestureDetector(
-                onTap: _saving ? null : _pickImage,
-                child: Container(
-                  height: 170,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey),
-                    color: Colors.white,
+      body: Stack(
+        // ✅ Added Stack for loading overlay
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                children: [
+                  GestureDetector(
+                    onTap: _saving ? null : _pickImage,
+                    child: Container(
+                      height: 170,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.grey),
+                        color: Colors.white,
+                      ),
+                      child:
+                          (_localImagePath == null &&
+                              (_imageUrl == null || _imageUrl!.isEmpty))
+                          ? const Center(
+                              child: Text("Tap to upload exhibition image"),
+                            )
+                          : ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: _previewImage(),
+                            ),
+                    ),
                   ),
-                  child:
-                      (_localImagePath == null &&
-                          (_imageUrl == null || _imageUrl!.isEmpty))
-                      ? const Center(
-                          child: Text("Tap to upload exhibition image"),
-                        )
-                      : ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: _previewImage(),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 14),
+                  const SizedBox(height: 14),
 
-              _field(
-                controller: _titleCtrl,
-                label: "Exhibition Title",
-                icon: Icons.title,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? "Title required" : null,
-              ),
-              const SizedBox(height: 12),
+                  _field(
+                    controller: _titleCtrl,
+                    label: "Exhibition Title",
+                    icon: Icons.title,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? "Title required"
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
 
-              _field(
-                controller: _venueCtrl,
-                label: "Venue / Location",
-                icon: Icons.location_on,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? "Venue required" : null,
-              ),
-              const SizedBox(height: 12),
+                  _field(
+                    controller: _venueCtrl,
+                    label: "Venue / Location",
+                    icon: Icons.location_on,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? "Venue required"
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
 
-              _field(
-                controller: _descCtrl,
-                label: "Description",
-                icon: Icons.description,
-                maxLines: 3,
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? "Description required"
-                    : null,
-              ),
-              const SizedBox(height: 12),
+                  _field(
+                    controller: _descCtrl,
+                    label: "Description",
+                    icon: Icons.description,
+                    maxLines: 3,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? "Description required"
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
 
-              _field(
-                controller: _totalSeatsCtrl,
-                label: "Total Seats",
-                icon: Icons.event_seat,
-                keyboardType: TextInputType.number,
-                validator: (v) {
-                  final n = int.tryParse((v ?? "").trim());
-                  if (n == null || n <= 0) return "Enter a valid seat count";
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
+                  _field(
+                    controller: _totalSeatsCtrl,
+                    label: "Total Seats",
+                    icon: Icons.event_seat,
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      final n = int.tryParse((v ?? "").trim());
+                      if (n == null || n <= 0)
+                        return "Enter a valid seat count";
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
 
-              _field(
-                controller: _priceCtrl,
-                label: "Price Per Seat (₹)",
-                icon: Icons.currency_rupee,
-                keyboardType: TextInputType.number,
-                validator: (v) {
-                  final p = int.tryParse((v ?? "").trim());
-                  if (p == null || p <= 0) return "Enter a valid price";
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
+                  _field(
+                    controller: _priceCtrl,
+                    label: "Price Per Seat (₹)",
+                    icon: Icons.currency_rupee,
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      final p = int.tryParse((v ?? "").trim());
+                      if (p == null || p <= 0) return "Enter a valid price";
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
 
-              ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                tileColor: Colors.white,
-                leading: const Icon(Icons.calendar_month),
-                title: Text(
-                  _selectedDateTime == null
-                      ? "Select Date & Time"
-                      : _formatDateTime(_selectedDateTime!),
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: _saving ? null : _pickDateTime,
-              ),
+                  ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    tileColor: Colors.white,
+                    leading: const Icon(Icons.calendar_month),
+                    title: Text(
+                      _selectedDateTime == null
+                          ? "Select Date & Time"
+                          : _formatDateTime(_selectedDateTime!),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _saving ? null : _pickDateTime,
+                  ),
 
-              const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-              ElevatedButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: const Icon(Icons.save),
-                label: Text(isEdit ? "Update Exhibition" : "Add Exhibition"),
+                  ElevatedButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: const Icon(Icons.save),
+                    label: Text(
+                      isEdit ? "Update Exhibition" : "Add Exhibition",
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          if (_saving)
+            // ✅ Loading Overlay
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text(
+                      "Saving Exhibition...",
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -348,7 +393,16 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
       await backend.upsertExhibition(ex);
 
       if (!mounted) return;
-      Navigator.pop(context, true);
+
+      if (widget.onSuccess != null) {
+        // ✅ Tab-based mode: clear form and notify
+        _clearForm();
+        _snack("Exhibition added successfully!");
+        widget.onSuccess!();
+      } else {
+        // ✅ Push-based mode (Edit): pop
+        Navigator.pop(context, true);
+      }
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));
     } finally {

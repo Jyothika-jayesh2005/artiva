@@ -1,6 +1,7 @@
 const { setGlobalOptions } = require("firebase-functions");
 const { onRequest } = require("firebase-functions/v2/https");
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 
 const admin = require("firebase-admin");
@@ -37,7 +38,7 @@ exports.onOrderRated = onDocumentUpdated("orders/{orderId}", async (event) => {
   if (typeof rating !== "number" || rating < 1 || rating > 5) return;
 
   const artRef = db.collection("artworks").doc(artId);
-  const ratingRef = artRef.collection("user_ratings").doc(uid);
+  const ratingRef = artRef.collection("user_ratings").doc(orderId);
 
   await db.runTransaction(async (tx) => {
     // write public review
@@ -74,4 +75,32 @@ exports.onOrderRated = onDocumentUpdated("orders/{orderId}", async (event) => {
       { merge: true }
     );
   });
+});
+
+/**
+ * Automatically archive exhibitions every day at midnight.
+ * NOTE: Requires Blaze (Pay-as-you-go) plan.
+ */
+exports.archiveOldExhibitions = onSchedule("0 0 * * *", async (event) => {
+  const now = admin.firestore.Timestamp.now();
+  const snap = await db.collection("exhibitions")
+    .where("isArchived", "==", false)
+    .where("dateTime", "<", now)
+    .get();
+
+  if (snap.empty) {
+    logger.info("No exhibitions to archive.");
+    return;
+  }
+
+  const batch = db.batch();
+  snap.docs.forEach((doc) => {
+    batch.update(doc.ref, {
+      isArchived: true,
+      updatedAt: now,
+    });
+  });
+
+  await batch.commit();
+  logger.info(`Archived ${snap.size} exhibitions.`);
 });

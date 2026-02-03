@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'firebase_options.dart';
 import 'package:artiva/auth/auth_service.dart';
+import 'package:artiva/backend/backend_provider.dart';
 
 import 'package:artiva/auth/welcome_screen.dart';
 import 'package:artiva/auth/login_screen.dart';
@@ -16,11 +17,12 @@ import 'package:artiva/auth/onboarding_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   authService.startAuthListener();
+
+  // ✅ AUTO-ARCHIVE PAST EXHIBITIONS
+  backend.syncExhibitionArchiveStatus();
 
   runApp(const ArtivaApp());
 }

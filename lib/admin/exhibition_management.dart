@@ -46,11 +46,16 @@ class _ExhibitionManagementBodyState extends State<ExhibitionManagementBody> {
               }
 
               var list = snap.data ?? [];
+              final now = DateTime.now();
 
               if (widget.filter == ExhibitionDashFilter.active) {
-                list = list.where((e) => !e.isArchived).toList();
+                list = list
+                    .where((e) => !e.isArchived && e.dateTime.isAfter(now))
+                    .toList();
               } else if (widget.filter == ExhibitionDashFilter.unarchive) {
-                list = list.where((e) => e.isArchived).toList();
+                list = list
+                    .where((e) => e.isArchived || e.dateTime.isBefore(now))
+                    .toList();
               } else if (widget.filter == ExhibitionDashFilter.soldOut) {
                 list = list.where((e) => e.remainingSeats <= 0).toList();
               }

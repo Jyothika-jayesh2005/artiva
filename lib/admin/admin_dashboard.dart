@@ -124,7 +124,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
       pages: [
         dashboardPage,
         bookingsPage,
-        const AddEditExhibitionPage(), // ✅ third tab now opens add exhibition form
+        AddEditExhibitionPage(
+          onSuccess: () => setState(() => _index = 0),
+        ), // ✅ switches to Dashboard tab on success
       ],
       items: const [
         BottomNavigationBarItem(

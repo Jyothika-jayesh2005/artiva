@@ -22,13 +22,10 @@ service cloud.firestore {
 
     // Users: Users can read/write their own profile
     match /users/{userId} {
-      // 🚨 EMERGENCY DEBUG MODE 🚨
-      // Temporarily allow anyone to read/write for 5 minutes 
-      // to confirm if the rules are the real problem.
-      allow read, write: if true;
-      
-      // Allow updates to specific fields if the user is the owner or admin
-      allow update: if isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'photoUrl', 'updatedAt']) || isAdmin();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'photoUrl', 'updatedAt'])) || isAdmin();
+      allow delete: if isAdmin();
       
       // Addresses subcollection
       match /addresses/{addressId} {
@@ -74,9 +71,16 @@ service cloud.firestore {
       allow read: if true;
       allow create, delete: if isAdmin();
       // Allow customers to update bookedSeats during booking
+      // Also allow auto-archiving by any user if the date has passed
       allow update: if isAdmin() || (
-        isAuthenticated() && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bookedSeats'])
+        isAuthenticated() && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bookedSeats']) ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isArchived', 'updatedAt']) &&
+            request.resource.data.isArchived == true &&
+            resource.data.dateTime < request.time
+          )
+        )
       );
     }
 

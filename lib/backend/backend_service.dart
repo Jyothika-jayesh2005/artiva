@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:artiva/backend/models.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:artiva/auth/auth_service.dart';
+import 'package:flutter/foundation.dart';
 
 class PublicReview {
   final String uid;
@@ -166,11 +167,12 @@ class BackendService {
     await _db.collection('exhibitions').doc(exhibitionId).delete();
   }
 
-  Stream<List<Exhibition>> watchExhibitions() {
+  Stream<List<Exhibition>> watchExhibitions({bool includeArchived = false}) {
     return _db.collection('exhibitions').orderBy('dateTime').snapshots().map((
       snap,
     ) {
-      return snap.docs.map((d) {
+      final now = DateTime.now();
+      final list = snap.docs.map((d) {
         final data = d.data();
         return Exhibition(
           id: d.id,
@@ -188,6 +190,11 @@ class BackendService {
           isArchived: _asBool(data['isArchived']),
         );
       }).toList();
+
+      if (includeArchived) return list;
+      return list
+          .where((e) => !e.isArchived && e.dateTime.isAfter(now))
+          .toList();
     });
   }
 
@@ -195,6 +202,7 @@ class BackendService {
     bool includeArchived = false,
   }) async {
     final snap = await _db.collection('exhibitions').orderBy('dateTime').get();
+    final now = DateTime.now();
 
     final list = snap.docs.map((d) {
       final data = d.data();
@@ -216,7 +224,7 @@ class BackendService {
     }).toList();
 
     if (includeArchived) return list;
-    return list.where((e) => !e.isArchived).toList();
+    return list.where((e) => !e.isArchived && e.dateTime.isAfter(now)).toList();
   }
 
   Future<void> setExhibitionArchived(String exhibitionId, bool archived) async {
@@ -224,6 +232,50 @@ class BackendService {
       'isArchived': archived,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// Automatically archives exhibitions that have already passed.
+  Future<void> syncExhibitionArchiveStatus() async {
+    try {
+      final now = DateTime.now();
+      // ✅ SIMPLIFIED QUERY: Only filter by isArchived (equality)
+      final snap = await _db
+          .collection('exhibitions')
+          .where('isArchived', isEqualTo: false)
+          .get();
+
+      if (snap.docs.isEmpty) return;
+
+      int count = 0;
+      WriteBatch batch = _db.batch();
+      bool hasUpdates = false;
+
+      for (var doc in snap.docs) {
+        final date = _asDate(doc.data()['dateTime']);
+        if (date.isBefore(now)) {
+          batch.update(doc.reference, {
+            'isArchived': true,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          hasUpdates = true;
+          count++;
+
+          // Firestore batch limit is 500 operations
+          if (count >= 450) {
+            await batch.commit();
+            batch = _db.batch();
+            count = 0;
+          }
+        }
+      }
+
+      if (hasUpdates && count > 0) {
+        await batch.commit();
+      }
+    } catch (e) {
+      // ✅ Fail silently for the user but log for debugging
+      debugPrint("Error syncing exhibition archive status: $e");
+    }
   }
 
   // ---------------- EXHIBITION BOOKINGS ----------------
@@ -245,6 +297,15 @@ class BackendService {
       }
 
       final data = exSnap.data()!;
+
+      // ✅ CHECK IF PASSED
+      final DateTime date = _asDate(data['dateTime']);
+      if (date.isBefore(DateTime.now())) {
+        throw Exception(
+          "This exhibition has already passed and cannot be booked.",
+        );
+      }
+
       final int totalSeats = data['totalSeats'] ?? 0;
       final int bookedSeats = data['bookedSeats'] ?? 0;
 
@@ -276,11 +337,10 @@ class BackendService {
 
   Future<List<ExhibitionBooking>> getAllExhibitionBookings() async {
     final snap = await _db
-        .collection('passes') // ✅ FIXED
-        .orderBy('createdAt', descending: true)
+        .collection('passes') // ✅ Simplified for no index
         .get();
 
-    return snap.docs.map((d) {
+    final list = snap.docs.map((d) {
       final data = d.data();
       return ExhibitionBooking(
         id: d.id,
@@ -295,18 +355,22 @@ class BackendService {
         bookedAt: _asDate(data['createdAt'], fallback: DateTime.now()),
       );
     }).toList();
+
+    // Sort in-memory to avoid composite index
+    list.sort((a, b) => b.bookedAt.compareTo(a.bookedAt));
+    return list;
   }
 
   Future<List<ExhibitionBooking>> getMyExhibitionBookings(
     String customerEmail,
   ) async {
     final snap = await _db
-        .collection('passes') // ✅ FIXED
+        .collection('passes')
         .where('customerEmail', isEqualTo: customerEmail)
-        .orderBy('createdAt', descending: true)
+        // .orderBy('createdAt', descending: true) // REMOVED to avoid index
         .get();
 
-    return snap.docs.map((d) {
+    final list = snap.docs.map((d) {
       final data = d.data();
       return ExhibitionBooking(
         id: d.id,
@@ -321,6 +385,10 @@ class BackendService {
         bookedAt: _asDate(data['createdAt'], fallback: DateTime.now()),
       );
     }).toList();
+
+    // Sort in-memory
+    list.sort((a, b) => b.bookedAt.compareTo(a.bookedAt));
+    return list;
   }
 
   // ---------------- ORDERS ----------------
@@ -354,10 +422,14 @@ class BackendService {
     final snap = await _db
         .collection('orders')
         .where('userId', isEqualTo: uid)
-        .orderBy('orderedAt', descending: true)
+        // .orderBy('orderedAt', descending: true) // REMOVED to avoid index
         .get();
 
-    return snap.docs.map(_orderFromDoc).toList();
+    final list = snap.docs.map(_orderFromDoc).toList();
+
+    // Sort in-memory
+    list.sort((a, b) => b.orderedAt.compareTo(a.orderedAt));
+    return list;
   }
 
   Future<void> updateOrderStatus(String orderId, OrderStatus status) async {
@@ -511,9 +583,11 @@ class BackendService {
     // We need the customerName from the order.
     final finalOrderSnap = await orderRef.get();
     final finalOrderData = finalOrderSnap.data();
-    
+
     // Resolve name: Order Name -> User Profile Name -> Fallback
-    String reviewerName = (finalOrderData?['customerName'] ?? '').toString().trim();
+    String reviewerName = (finalOrderData?['customerName'] ?? '')
+        .toString()
+        .trim();
     if (reviewerName.isEmpty) {
       final appUser = authService.currentUser;
       reviewerName = appUser?.name ?? 'Customer';
@@ -525,7 +599,9 @@ class BackendService {
           .collection('artworks')
           .doc(artId)
           .collection('user_ratings')
-          .doc(orderId) // ✅ Use orderId as DOC ID so multiple orders = multiple reviews
+          .doc(
+            orderId,
+          ) // ✅ Use orderId as DOC ID so multiple orders = multiple reviews
           .set({
             'uid': u.uid,
             'email': u.email,
@@ -565,7 +641,10 @@ class BackendService {
       final price = _asInt(data['price']); // Trust DB price
       final total = _asInt(data['totalQuantity']);
       final sold = _asInt(data['soldQuantity']);
-      final image = _asString(data['imageUrl'], fallback: _asString(data['imagePath']));
+      final image = _asString(
+        data['imageUrl'],
+        fallback: _asString(data['imagePath']),
+      );
 
       // 2. Check Stock
       if ((total - sold) < quantity) {
@@ -658,16 +737,25 @@ class BackendService {
         .collection('orders')
         .where('artId', isEqualTo: artworkId)
         .where('ratingLocked', isEqualTo: true)
-        .orderBy('ratedAt', descending: true)
+        // .orderBy('ratedAt', descending: true) // REMOVED to avoid index
         .get();
 
-    return snap.docs
+    final list = snap.docs
         .map(_orderFromDoc)
         .where(
           (order) =>
               order.rating != null || (order.review ?? "").trim().isNotEmpty,
         )
         .toList();
+
+    // Sort in-memory
+    list.sort((a, b) {
+      final da = a.ratedAt ?? DateTime(2000);
+      final db = b.ratedAt ?? DateTime(2000);
+      return db.compareTo(da);
+    });
+
+    return list;
   }
 
   // ✅ NEW: PUBLIC REVIEWS (from artworks/{artId}/user_ratings)
