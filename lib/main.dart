@@ -3,7 +3,6 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'firebase_options.dart';
 import 'package:artiva/auth/auth_service.dart';
-import 'package:artiva/backend/backend_provider.dart';
 
 import 'package:artiva/auth/welcome_screen.dart';
 import 'package:artiva/auth/login_screen.dart';
@@ -20,9 +19,6 @@ Future<void> main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   authService.startAuthListener();
-
-  // ✅ AUTO-ARCHIVE PAST EXHIBITIONS
-  backend.syncExhibitionArchiveStatus();
 
   runApp(const ArtivaApp());
 }

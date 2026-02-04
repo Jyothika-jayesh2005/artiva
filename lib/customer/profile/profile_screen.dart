@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/widgets/customer_scaffold.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:artiva/auth/auth_service.dart';
 import 'package:artiva/backend/models.dart';
 
@@ -119,12 +120,34 @@ class ProfileScreen extends StatelessWidget {
                 title: "Favourites",
                 page: const FavouritesPage(),
               ),
-              _cardItem(
-                context,
-                icon: Icons.help_outline,
-                title: "Help & Support",
-                page: const HelpSupportPage(),
-              ),
+              if (user != null && user.uid.isNotEmpty)
+                StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('support_threads')
+                      .doc(user.uid)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final data = snapshot.data?.data() as Map<String, dynamic>?;
+                    final bool unread =
+                        data != null && data['userUnread'] == true;
+
+                    return _cardItem(
+                      context,
+                      icon: Icons.help_outline,
+                      title: "Help & Support",
+                      page: const HelpSupportPage(),
+                      showBadge: unread,
+                    );
+                  },
+                )
+              else
+                _cardItem(
+                  context,
+                  icon: Icons.help_outline,
+                  title: "Help & Support",
+                  page: const HelpSupportPage(),
+                  showBadge: false,
+                ),
               _cardItem(
                 context,
                 icon: Icons.info_outline,
@@ -163,6 +186,7 @@ class ProfileScreen extends StatelessWidget {
     required IconData icon,
     required String title,
     required Widget page,
+    bool showBadge = false,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -178,11 +202,35 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
       child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: primary.withOpacity(0.12),
-          child: Icon(icon, color: primary),
+        leading: Stack(
+          children: [
+            CircleAvatar(
+              backgroundColor: primary.withOpacity(0.12),
+              child: Icon(icon, color: primary),
+            ),
+            if (showBadge)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+              ),
+          ],
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: showBadge ? FontWeight.bold : FontWeight.w600,
+            color: showBadge ? primary : Colors.black87,
+          ),
+        ),
         trailing: const Icon(
           Icons.arrow_forward_ios,
           size: 16,

@@ -1,5 +1,6 @@
 import 'package:artiva/admin/add_edit_exhibition.dart';
 import 'package:artiva/admin/users_page.dart';
+import 'package:artiva/admin/support_inbox.dart';
 import 'package:artiva/widgets/admin_scaffold.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -261,14 +262,67 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome> {
       title: "Booking Overview",
       showBack: false,
       actions: [
-        Container(
-          height: 38,
-          width: 38,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.95),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.person, color: Color(0xFFFF7A18)),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('support_threads')
+              .where('adminUnread', isEqualTo: true)
+              .snapshots(),
+          builder: (context, snapshot) {
+            final int unreadCount = snapshot.data?.docs.length ?? 0;
+
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SupportInboxPage(),
+                      ),
+                    );
+                  },
+                  icon: Container(
+                    height: 38,
+                    width: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.95),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.support_agent_rounded,
+                      color: Color(0xFFFF7A18),
+                    ),
+                  ),
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    top: 5,
+                    right: 5,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      child: Text(
+                        unreadCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
         const SizedBox(width: 10),
         IconButton(

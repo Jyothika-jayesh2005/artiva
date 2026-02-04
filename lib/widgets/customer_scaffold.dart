@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:artiva/customer/artwork_list.dart';
 import 'package:artiva/customer/exhibition_screen.dart';
 import 'package:artiva/customer/home_screen.dart';
-
-
+import 'package:artiva/auth/auth_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CustomerScaffold extends StatelessWidget {
   final Widget body;
@@ -93,8 +93,10 @@ class CustomerScaffold extends StatelessWidget {
                       // Back button only for inner pages
                       if (currentIndex == -1)
                         IconButton(
-                          icon:
-                              const Icon(Icons.arrow_back, color: Colors.white),
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                          ),
                           onPressed: onBack ?? () => _defaultBack(context),
                         ),
 
@@ -113,23 +115,7 @@ class CustomerScaffold extends StatelessWidget {
                       ),
 
                       // Profile icon only on main tabs
-                      if (currentIndex != -1)
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ProfileScreen(),
-                              ),
-                            );
-                          },
-                          child: const CircleAvatar(
-                            radius: 18,
-                            backgroundColor: Colors.white,
-                            child: Icon(Icons.person_outline,
-                                color: Colors.black),
-                          ),
-                        ),
+                      if (currentIndex != -1) _ProfileIconWithBadge(),
                     ],
                   ),
 
@@ -186,6 +172,74 @@ class CustomerScaffold extends StatelessWidget {
         size: 26,
         color: active ? const Color(0xFFFF9F1C) : Colors.grey,
       ),
+    );
+  }
+}
+
+class _ProfileIconWithBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final user = authService.currentUser;
+
+    // ✅ FIX: Don't access Firestore if user is not authenticated
+    if (user == null) {
+      return GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+          );
+        },
+        child: const CircleAvatar(
+          radius: 18,
+          backgroundColor: Colors.white,
+          child: Icon(Icons.person_outline, color: Colors.black),
+        ),
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('support_threads')
+          .doc(user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        final bool unread = data != null && data['userUnread'] == true;
+
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            );
+          },
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.white,
+                child: Icon(Icons.person_outline, color: Colors.black),
+              ),
+              if (unread)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

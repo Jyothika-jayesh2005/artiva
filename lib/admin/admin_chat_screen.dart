@@ -1,19 +1,23 @@
-import 'package:artiva/auth/auth_service.dart';
+import 'package:artiva/widgets/admin_scaffold.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:intl/intl.dart';
 
-class HelpSupportPage extends StatefulWidget {
-  const HelpSupportPage({super.key});
+class AdminChatScreen extends StatefulWidget {
+  final String userId;
+  final String userName;
+
+  const AdminChatScreen({
+    super.key,
+    required this.userId,
+    required this.userName,
+  });
 
   @override
-  State<HelpSupportPage> createState() => _HelpSupportPageState();
+  State<AdminChatScreen> createState() => _AdminChatScreenState();
 }
 
-class _HelpSupportPageState extends State<HelpSupportPage> {
-  static const Color accent = Color(0xFFE16417);
-
+class _AdminChatScreenState extends State<AdminChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -24,51 +28,42 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   }
 
   Future<void> _markAsRead() async {
-    final user = authService.currentUser;
-    if (user == null) return;
     await FirebaseFirestore.instance
         .collection('support_threads')
-        .doc(user.uid)
-        .update({'userUnread': false});
+        .doc(widget.userId)
+        .update({'adminUnread': false});
   }
 
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
-    final user = authService.currentUser;
-    if (user == null) return;
-
     _controller.clear();
 
     final threadRef = FirebaseFirestore.instance
         .collection('support_threads')
-        .doc(user.uid);
+        .doc(widget.userId);
 
     final batch = FirebaseFirestore.instance.batch();
 
-    // Update thread info
-    batch.set(threadRef, {
-      'userName': user.name,
-      'userEmail': user.email,
+    // Update thread info (last admin reply)
+    batch.update(threadRef, {
       'lastMessage': text,
       'lastTimestamp': FieldValue.serverTimestamp(),
-      'userId': user.uid,
-      'adminUnread': true,
-    }, SetOptions(merge: true));
+      'userUnread': true,
+    });
 
     // Add message
     final msgRef = threadRef.collection('messages').doc();
     batch.set(msgRef, {
       'text': text,
-      'senderId': user.uid,
-      'isAdmin': false,
+      'senderId': 'admin',
+      'isAdmin': true,
       'timestamp': FieldValue.serverTimestamp(),
     });
 
     await batch.commit();
 
-    // Scroll to bottom
     _scrollController.animateTo(
       0,
       duration: const Duration(milliseconds: 300),
@@ -78,48 +73,27 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final user = authService.currentUser;
-
-    if (user == null) {
-      return const CustomerScaffold(
-        currentIndex: -1,
-        title: "Help & Support",
-        body: Center(child: Text("Please login to access support.")),
-      );
-    }
-
-    return CustomerScaffold(
-      currentIndex: -1,
-      title: "Help & Support",
+    return AdminScaffold(
+      showBack: true,
+      title: "Chat with ${widget.userName}",
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('support_threads')
-                  .doc(user.uid)
+                  .doc(widget.userId)
                   .collection('messages')
                   .orderBy('timestamp', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(color: accent),
+                    child: CircularProgressIndicator(color: Color(0xFFFF8C1A)),
                   );
                 }
 
                 final docs = snapshot.data?.docs ?? [];
-
-                if (docs.isEmpty) {
-                  return ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: const [
-                      _HeaderCard(),
-                      SizedBox(height: 20),
-                      _NoMessagesPlaceholder(),
-                    ],
-                  );
-                }
 
                 return ListView.builder(
                   controller: _scrollController,
@@ -132,7 +106,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     final String text = data['text'] ?? "";
                     final Timestamp? ts = data['timestamp'] as Timestamp?;
 
-                    return _ChatBubble(
+                    return _AdminChatBubble(
                       text: text,
                       isAdmin: isAdmin,
                       timestamp: ts?.toDate(),
@@ -142,19 +116,19 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
               },
             ),
           ),
-          _MessageInput(controller: _controller, onSend: _sendMessage),
+          _AdminMessageInput(controller: _controller, onSend: _sendMessage),
         ],
       ),
     );
   }
 }
 
-class _ChatBubble extends StatelessWidget {
+class _AdminChatBubble extends StatelessWidget {
   final String text;
   final bool isAdmin;
   final DateTime? timestamp;
 
-  const _ChatBubble({
+  const _AdminChatBubble({
     required this.text,
     required this.isAdmin,
     this.timestamp,
@@ -162,9 +136,9 @@ class _ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMe = !isAdmin;
+    final bool isMe = isAdmin; // Admin is "Me" here
     final alignment = isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
-    final color = isMe ? const Color(0xFFE16417) : const Color(0xFFE0E0E0);
+    final color = isMe ? const Color(0xFFFF8C1A) : const Color(0xFFF0F0F0);
     final textColor = isMe ? Colors.white : Colors.black87;
     final radius = isMe
         ? const BorderRadius.only(
@@ -188,17 +162,7 @@ class _ChatBubble extends StatelessWidget {
               maxWidth: MediaQuery.of(context).size.width * 0.75,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: radius,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
+            decoration: BoxDecoration(color: color, borderRadius: radius),
             child: Text(
               text,
               style: TextStyle(color: textColor, fontSize: 14.5, height: 1.4),
@@ -218,11 +182,11 @@ class _ChatBubble extends StatelessWidget {
   }
 }
 
-class _MessageInput extends StatelessWidget {
+class _AdminMessageInput extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
 
-  const _MessageInput({required this.controller, required this.onSend});
+  const _AdminMessageInput({required this.controller, required this.onSend});
 
   @override
   Widget build(BuildContext context) {
@@ -230,13 +194,7 @@ class _MessageInput extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        border: Border(top: BorderSide(color: Colors.black.withOpacity(0.05))),
       ),
       child: SafeArea(
         child: Row(
@@ -251,7 +209,7 @@ class _MessageInput extends StatelessWidget {
                 child: TextField(
                   controller: controller,
                   decoration: const InputDecoration(
-                    hintText: "Type a message...",
+                    hintText: "Reply to user...",
                     border: InputBorder.none,
                     hintStyle: TextStyle(fontSize: 14, color: Colors.black45),
                   ),
@@ -260,101 +218,15 @@ class _MessageInput extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            GestureDetector(
-              onTap: onSend,
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFE16417),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.send_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
+            IconButton(
+              onPressed: onSend,
+              icon: const CircleAvatar(
+                backgroundColor: Color(0xFFFF8C1A),
+                child: Icon(Icons.send_rounded, color: Colors.white, size: 20),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _NoMessagesPlaceholder extends StatelessWidget {
-  const _NoMessagesPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(
-          Icons.chat_bubble_outline_rounded,
-          size: 64,
-          color: Colors.orange.withOpacity(0.2),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          "How can we help you today?",
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF4A4A4A),
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          "Send us a message and we'll get back to you shortly.",
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: Colors.black45),
-        ),
-      ],
-    );
-  }
-}
-
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard();
-
-  static const Color accent = Color(0xFFE16417);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [accent, Color(0xFFFF8C1A)],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 16,
-            offset: const Offset(0, 10),
-            color: Colors.black.withOpacity(0.12),
-          ),
-        ],
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Need Help?",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            "We’re here to assist you with artwork orders, exhibition bookings, and more. Responses usually take 24-48 hours.",
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-        ],
       ),
     );
   }

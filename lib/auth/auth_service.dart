@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:artiva/backend/models.dart';
+import 'package:artiva/backend/backend_provider.dart';
 
 class AuthService {
   AuthService._internal();
@@ -17,6 +18,10 @@ class AuthService {
   AppUser? get currentUser => userNotifier.value;
 
   bool _isListening = false;
+  bool _hasRunExhibitionSync = false;
+
+  // ✅ Flag to prevent race condition during registration
+  bool _isRegistering = false;
 
   /// Call this ONCE after Firebase.initializeApp() in main()
   void startAuthListener() {
@@ -29,8 +34,15 @@ class AuthService {
         return;
       }
 
+      // ✅ If we are in the middle of a registration flow,
+      // let the register() method handle the Firestore creation/updates.
+      if (_isRegistering) return;
+
       try {
         userNotifier.value = await _getOrCreateUserDoc(user);
+
+        // ✅ AUTO-ARCHIVE PAST EXHIBITIONS (only when authenticated)
+        _syncExhibitionsIfNeeded();
       } catch (_) {
         await _auth.signOut();
         userNotifier.value = null;
@@ -95,6 +107,15 @@ class AuthService {
     );
   }
 
+  /// Syncs exhibition archive status once per app session (after authentication)
+  void _syncExhibitionsIfNeeded() {
+    if (_hasRunExhibitionSync) return;
+    _hasRunExhibitionSync = true;
+
+    // Run async without blocking the auth flow
+    backend.syncExhibitionArchiveStatus();
+  }
+
   /// Forces Firestore role = admin for a specific admin email.
   Future<void> ensureAdminRole(String adminEmail) async {
     final user = _auth.currentUser;
@@ -125,6 +146,7 @@ class AuthService {
     required String phone,
     required String password,
   }) async {
+    _isRegistering = true; // ✅ Signal listener to back off
     try {
       final cred = await _auth.createUserWithEmailAndPassword(
         email: email.trim(),
@@ -153,7 +175,7 @@ class AuthService {
 
       try {
         // ✅ STEP 3: Create Firestore Document
-        await ref.set({
+        final userData = {
           'name': name,
           'email': email.trim(),
           'phone': phone.trim(),
@@ -161,7 +183,12 @@ class AuthService {
           'photoUrl': '',
           'archived': false,
           'createdAt': FieldValue.serverTimestamp(),
-        });
+        };
+
+        debugPrint("Attempting to write user data: ${userData.keys.toList()}");
+        debugPrint("Role value: ${userData['role']}");
+
+        await ref.set(userData);
       } catch (e) {
         // 🚨 IF FIRESTORE FAILS: Cleanup (Delete) the Auth account
         // This allows the user to try again with the same email after fixing rules.
@@ -187,6 +214,8 @@ class AuthService {
       return fresh;
     } on FirebaseAuthException catch (e) {
       throw Exception(_friendlyAuthError(e));
+    } finally {
+      _isRegistering = false; // ✅ Reset flag always
     }
   }
 
