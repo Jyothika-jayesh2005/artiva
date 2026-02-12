@@ -10,6 +10,7 @@ class PaymentPage extends StatefulWidget {
   final String address;
   final Map<String, dynamic>? addressSnapshot;
   final String? addressId;
+  final int quantity; // ✅ NEW
 
   const PaymentPage({
     super.key,
@@ -17,6 +18,7 @@ class PaymentPage extends StatefulWidget {
     required this.address,
     this.addressSnapshot,
     this.addressId,
+    this.quantity = 1, // ✅ Default 1
   });
 
   @override
@@ -30,7 +32,30 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   Widget build(BuildContext context) {
     final title = (widget.artwork["title"] ?? "-").toString();
-    final priceText = (widget.artwork["price"] ?? "-").toString();
+    final priceStr = (widget.artwork["price"] ?? "0").toString();
+
+    // Parse price for calculation
+    int priceVal = 0;
+    try {
+      priceVal = int.parse(priceStr.replaceAll(RegExp(r'[^0-9]'), ''));
+    } catch (_) {}
+
+    final int quantity = widget.quantity;
+    final int totalVal = priceVal * quantity;
+
+    // specific formatter for indian currency if needed
+    // reuse logic or just standard format
+    String _formatCurrency(int amount) {
+      final s = amount.toString();
+      if (s.length <= 3) return "₹$s";
+      final last3 = s.substring(s.length - 3);
+      final rest = s.substring(0, s.length - 3);
+      final reg = RegExp(r'(\d)(?=(\d{2})+(?!\d))');
+      return "₹${rest.replaceAllMapped(reg, (m) => '${m[1]},')},$last3";
+    }
+
+    final String displayPrice = _formatCurrency(totalVal);
+    final String unitPrice = _formatCurrency(priceVal);
 
     return CustomerScaffold(
       currentIndex: -1,
@@ -42,6 +67,7 @@ class _PaymentPageState extends State<PaymentPage> {
           children: [
             _sectionTitle("Artwork"),
             _infoRow("Title", title),
+            if (quantity > 1) _infoRow("Quantity", "$quantity"),
 
             // ✅ Bigger orange price (requested)
             const SizedBox(height: 6),
@@ -49,22 +75,35 @@ class _PaymentPageState extends State<PaymentPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "Price",
-                  style: TextStyle(
+                Text(
+                  quantity > 1 ? "Total Price" : "Price",
+                  style: const TextStyle(
                     fontSize: 14,
                     color: Colors.grey,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                Text(
-                  "₹$priceText",
-                  style: const TextStyle(
-                    fontSize: 20, // ✅ smaller
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFFE16417), // ✅ orange
-                  ),
-                  textAlign: TextAlign.right,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      displayPrice,
+                      style: const TextStyle(
+                        fontSize: 20, // ✅ smaller
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFE16417), // ✅ orange
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                    if (quantity > 1)
+                      Text(
+                        "($unitPrice x $quantity)",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -181,7 +220,7 @@ class _PaymentPageState extends State<PaymentPage> {
       final String orderId = await backend.placeOrderTransaction(
         userId: user.uid,
         artworkId: artworkId,
-        quantity: 1,
+        quantity: widget.quantity, // ✅ Pass correct quantity
         address: widget.address,
         addressId: widget.addressId,
         addressSnapshot: widget.addressSnapshot,

@@ -24,12 +24,16 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   }
 
   Future<void> _markAsRead() async {
-    final user = authService.currentUser;
-    if (user == null) return;
-    await FirebaseFirestore.instance
-        .collection('support_threads')
-        .doc(user.uid)
-        .update({'userUnread': false});
+    try {
+      final user = authService.currentUser;
+      if (user == null) return;
+      await FirebaseFirestore.instance
+          .collection('support_threads')
+          .doc(user.uid)
+          .update({'userUnread': false});
+    } catch (e) {
+      debugPrint("Error marking thread as read: $e");
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -37,43 +41,58 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     if (text.isEmpty) return;
 
     final user = authService.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("You must be logged in to send a message."),
+        ),
+      );
+      return;
+    }
 
     _controller.clear();
 
-    final threadRef = FirebaseFirestore.instance
-        .collection('support_threads')
-        .doc(user.uid);
+    try {
+      final threadRef = FirebaseFirestore.instance
+          .collection('support_threads')
+          .doc(user.uid);
 
-    final batch = FirebaseFirestore.instance.batch();
+      final batch = FirebaseFirestore.instance.batch();
 
-    // Update thread info
-    batch.set(threadRef, {
-      'userName': user.name,
-      'userEmail': user.email,
-      'lastMessage': text,
-      'lastTimestamp': FieldValue.serverTimestamp(),
-      'userId': user.uid,
-      'adminUnread': true,
-    }, SetOptions(merge: true));
+      // Update thread info
+      batch.set(threadRef, {
+        'userName': user.name,
+        'userEmail': user.email,
+        'lastMessage': text,
+        'lastTimestamp': FieldValue.serverTimestamp(),
+        'userId': user.uid,
+        'adminUnread': true,
+      }, SetOptions(merge: true));
 
-    // Add message
-    final msgRef = threadRef.collection('messages').doc();
-    batch.set(msgRef, {
-      'text': text,
-      'senderId': user.uid,
-      'isAdmin': false,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+      // Add message
+      final msgRef = threadRef.collection('messages').doc();
+      batch.set(msgRef, {
+        'text': text,
+        'senderId': user.uid,
+        'isAdmin': false,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
 
-    await batch.commit();
+      await batch.commit();
 
-    // Scroll to bottom
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+      // Scroll to bottom
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to send message: $e")));
+    }
   }
 
   @override

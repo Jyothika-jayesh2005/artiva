@@ -16,6 +16,17 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
   // ✅ UI filter state (PAID removed)
   String _statusFilter = "All"; // All / Pending / Shipped / Delivered
 
+  // ✅ NEW: Stream Subscription for notifications
+  // We need to track previous count to show notification only on NEW orders
+  int? _prevCount;
+
+  @override
+  void initState() {
+    super.initState();
+    // 1. Run auto-status sync on load
+    backend.syncOrderStatuses();
+  }
+
   String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
     return "${two(dt.day)}-${two(dt.month)}-${dt.year}  ${two(dt.hour)}:${two(dt.minute)}";
@@ -116,9 +127,10 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: "Artwork Orders",
-      
-      body: FutureBuilder<List<ArtworkOrder>>(
-        future: backend.getAllOrders(),
+
+      // ✅ CHANGED: Use STREAM instead of Future to get real-time updates
+      body: StreamBuilder<List<ArtworkOrder>>(
+        stream: backend.watchOrders(),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -133,37 +145,46 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
           }
 
           final orders = snap.data ?? [];
+
+          // ✅ NOTIFICATION LOGIC
+          // If count increased, show snackbar.
+          // Note: This runs every time stream emits.
+          if (_prevCount != null && orders.length > _prevCount!) {
+            // New order!
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _snack("🔔 New Order Received!");
+            });
+          }
+          _prevCount = orders.length;
+
           final filtered = _applyFilters(orders);
 
-          return RefreshIndicator(
-            onRefresh: () async => setState(() {}),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // ✅ FILTER UI HEADER (Search removed)
-                _filterHeader(total: orders.length, shown: filtered.length),
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // ✅ FILTER UI HEADER (Search removed)
+              _filterHeader(total: orders.length, shown: filtered.length),
 
-                const SizedBox(height: 14),
+              const SizedBox(height: 14),
 
-                if (orders.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 40),
-                    child: Center(child: Text("No artwork orders yet")),
-                  )
-                else if (filtered.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 40),
-                    child: Center(
-                      child: Text(
-                        "No orders found.\nTry changing filters.",
-                        textAlign: TextAlign.center,
-                      ),
+              if (orders.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 40),
+                  child: Center(child: Text("No artwork orders yet")),
+                )
+              else if (filtered.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 40),
+                  child: Center(
+                    child: Text(
+                      "No orders found.\nTry changing filters.",
+                      textAlign: TextAlign.center,
                     ),
-                  )
-                else
-                  ...filtered.map(_orderCard).toList(),
-              ],
-            ),
+                  ),
+                )
+              else
+                ...filtered.map(_orderCard).toList(),
+            ],
           );
         },
       ),
@@ -179,7 +200,10 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
           children: [
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
@@ -197,7 +221,10 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
                     SizedBox(width: 10),
                     Text(
                       "Filter orders",
-                      style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -271,6 +298,12 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
   Widget _orderCard(ArtworkOrder o) {
     final addressText = _formatOrderAddress(o);
 
+    // ✅ Color code status
+    Color statusColor = Colors.grey;
+    if (o.status == OrderStatus.shipped) statusColor = Colors.blue;
+    if (o.status == OrderStatus.delivered) statusColor = Colors.green;
+    if (o.status == OrderStatus.pending) statusColor = Colors.orange;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -290,29 +323,35 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
                 "Customer: ${o.customerName}\n"
                 "Email: ${o.customerEmail}\n"
                 "Qty: ${o.quantity}  •  Price: ${o.price}\n"
-                "Status: ${o.status.name}\n"
                 "Ordered: ${_formatDateTime(o.orderedAt)}",
               ),
-              trailing: DropdownButton<OrderStatus>(
-                value: o.status,
-                underline: const SizedBox(),
-                items: OrderStatus.values
-                    .map((s) => DropdownMenuItem(value: s, child: Text(s.name)))
-                    .toList(),
-                onChanged: (v) async {
-                  if (v == null) return;
-                  try {
-                    await backend.updateOrderStatus(o.id, v);
-                    if (mounted) setState(() {});
-                    _snack("Status updated to ${v.name}");
-                  } catch (e) {
-                    _snack(e.toString().replaceFirst('Exception: ', ''));
-                  }
-                },
+              // ✅ REMOVED DROPDOWN, SHOW TEXT ONLY
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: statusColor.withOpacity(0.5)),
+                ),
+                child: Text(
+                  o.status.name.toUpperCase(),
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
               ),
             ),
+
             const Divider(),
-            const Text("Delivery Address", style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              "Delivery Address",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 6),
             Text(addressText),
             if ((o.addressId ?? "").trim().isNotEmpty) ...[

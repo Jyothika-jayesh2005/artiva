@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:artiva/auth/auth_service.dart';
 
+import 'package:artiva/backend/backend_service.dart';
+
 // Pages
 import 'manage_artworks.dart';
 import 'exhibition_management.dart';
@@ -56,6 +58,39 @@ class _AdminDashboardState extends State<AdminDashboard> {
     await authService.logout();
     if (!mounted) return;
     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  }
+
+  // ✅ GLOBAL ORDER NOTIFICATION
+  // We listen to orders here so we get notifications ANYWHERE in Admin Dashboard
+  // regardless of which tab is open.
+  int? _prevOrderCount;
+
+  @override
+  void initState() {
+    super.initState();
+    BackendService().watchOrders().listen((orders) {
+      if (!mounted) return;
+
+      // Initial load: set count
+      if (_prevOrderCount == null) {
+        _prevOrderCount = orders.length;
+        return;
+      }
+
+      // If count increased
+      if (orders.length > _prevOrderCount!) {
+        // Show Global SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("🔔 New Order Received! Check Artwork Orders."),
+            duration: Duration(seconds: 4),
+            backgroundColor: Color(0xFFFF8C1A),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      _prevOrderCount = orders.length;
+    });
   }
 
   void _setMode(AdminMode next) {

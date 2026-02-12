@@ -9,11 +9,13 @@ import '../checkout/checkout_page.dart';
 class SavedAddressPage extends StatefulWidget {
   final bool isFromCheckout;
   final Map<String, String>? artwork;
+  final int quantity; // ✅ NEW
 
   const SavedAddressPage({
     super.key,
     this.isFromCheckout = false,
     this.artwork,
+    this.quantity = 1, // ✅ Default 1
   });
 
   @override
@@ -142,6 +144,7 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
             address: full,
             addressSnapshot: Map<String, dynamic>.from(addressSnap),
             addressId: addressId,
+            quantity: widget.quantity, // ✅ Pass quantity
           ),
         ),
       );
@@ -195,19 +198,26 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
                       stream: _watchAddresses,
                       builder: (context, snap) {
                         if (snap.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
                         }
                         if (snap.hasError) {
                           return Center(
                             child: Text(
-                              snap.error.toString().replaceFirst("Exception: ", ""),
+                              snap.error.toString().replaceFirst(
+                                "Exception: ",
+                                "",
+                              ),
                             ),
                           );
                         }
 
                         final docs = snap.data?.docs ?? [];
                         if (docs.isEmpty) {
-                          return const Center(child: Text("No saved addresses"));
+                          return const Center(
+                            child: Text("No saved addresses"),
+                          );
                         }
 
                         return ListView.builder(
@@ -218,10 +228,16 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
 
                             final name = (a["name"] ?? "").toString().trim();
                             final phone = (a["phone"] ?? "").toString().trim();
-                            final address = (a["address"] ?? "").toString().trim();
+                            final address = (a["address"] ?? "")
+                                .toString()
+                                .trim();
                             final city = (a["city"] ?? "").toString().trim();
-                            final district = (a["district"] ?? "").toString().trim();
-                            final pincode = (a["pincode"] ?? "").toString().trim();
+                            final district = (a["district"] ?? "")
+                                .toString()
+                                .trim();
+                            final pincode = (a["pincode"] ?? "")
+                                .toString()
+                                .trim();
 
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 14),
@@ -248,7 +264,10 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFFE16417),
                 side: const BorderSide(color: Color(0xFFE16417)),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
               ),
             ),
           ],
@@ -288,10 +307,7 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 10,
-              ),
+              BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10),
             ],
           ),
           child: Column(
@@ -313,7 +329,8 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
                     children: [
                       IconButton(
                         tooltip: "Edit",
-                        onPressed: () => _editAddress(docId: docId, current: addressSnap),
+                        onPressed: () =>
+                            _editAddress(docId: docId, current: addressSnap),
                         icon: const Icon(
                           Icons.edit,
                           size: 20,

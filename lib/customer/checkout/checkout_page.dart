@@ -7,6 +7,7 @@ class CheckoutPage extends StatelessWidget {
   final String address;
   final Map<String, dynamic> addressSnapshot;
   final String addressId;
+  final int quantity; // ✅ NEW
 
   const CheckoutPage({
     super.key,
@@ -14,6 +15,7 @@ class CheckoutPage extends StatelessWidget {
     required this.address,
     required this.addressSnapshot,
     required this.addressId,
+    this.quantity = 1, // ✅ Default 1
   });
 
   @override
@@ -24,6 +26,38 @@ class CheckoutPage extends StatelessWidget {
     final title = artwork["title"] ?? "Artwork";
     final category = artwork["category"] ?? "";
     final price = artwork["price"] ?? "-";
+
+    // Calculate total price string if possible for display, or just show unit price
+    // Note: PaymentPage will do the actual calculation for transaction
+    String displayPrice = "₹${price.toString()}";
+
+    // Attempt basic parsing for display purposes if quantity > 1
+    if (quantity > 1) {
+      // Simple cleaner to parse price
+      try {
+        final pStr = price.toString().replaceAll(RegExp(r'[^0-9]'), '');
+        final pInt = int.tryParse(pStr) ?? 0;
+        if (pInt > 0) {
+          // Helper to format currency
+          final total = pInt * quantity;
+          final s = total.toString();
+          String formatted;
+          if (s.length > 3) {
+            final last3 = s.substring(s.length - 3);
+            final rest = s.substring(0, s.length - 3);
+            final reg = RegExp(r'(\d)(?=(\d{2})+(?!\d))');
+            formatted =
+                "₹ ${rest.replaceAllMapped(reg, (m) => '${m[1]},')},$last3";
+          } else {
+            formatted = "₹ $s";
+          }
+          displayPrice = "$formatted\n(Qty: $quantity)";
+        }
+      } catch (_) {}
+    } else {
+      // If quantity is 1, just show regular price
+      displayPrice = "₹${price.toString()}";
+    }
 
     return CustomerScaffold(
       currentIndex: -1,
@@ -41,9 +75,23 @@ class CheckoutPage extends StatelessWidget {
                 child: _artworkImage(image.toString()),
               ),
               title: Text(title.toString()),
-              subtitle: Text(category.toString()),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(category.toString()),
+                  if (quantity > 1)
+                    Text(
+                      "Quantity: $quantity",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                ],
+              ),
               trailing: Text(
-                "₹${price.toString()}",
+                displayPrice,
+                textAlign: TextAlign.right,
                 style: const TextStyle(
                   fontSize: 18, // ✅ bigger
                   fontWeight: FontWeight.w800,
@@ -76,6 +124,7 @@ class CheckoutPage extends StatelessWidget {
                         address: address,
                         addressSnapshot: addressSnapshot,
                         addressId: addressId,
+                        quantity: quantity, // ✅ Pass quantity
                       ),
                     ),
                   );

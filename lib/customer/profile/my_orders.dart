@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/customer/home_screen.dart';
-import 'package:artiva/customer/artwork_detail.dart';
+import 'package:artiva/customer/profile/order_detail_page.dart';
 
 import 'package:artiva/auth/auth_service.dart';
 import 'package:artiva/backend/backend_service.dart';
@@ -46,6 +46,7 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
 
     final uid = user.uid;
     final list = await backend.getMyOrdersByUid(uid);
+    // 🔥 FILTER: Regular orders only (no auction ID check necessary if model doesn't support it yet, but user code had it. Checking model... ArtworkOrder doesn't have auctionId. Removing check.)
     _orders = list;
     return _orders!;
   }
@@ -99,40 +100,26 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
   }
 
   Widget _orderCard(ArtworkOrder order) {
+    final status = order.effectiveStatus;
     final locked = order.ratingLocked == true;
-    final canRate = order.status == OrderStatus.delivered && !locked;
+    final canRate = status == OrderStatus.delivered && !locked;
     final hasReview =
         order.rating != null || (order.review ?? "").trim().isNotEmpty;
 
-    return InkWell(
-      onTap: () async {
-        final artId = order.artId;
-        if (artId == null || artId.isEmpty) return;
+    // Calculate display date (Estimated or Delivered)
+    final isDelivered = status == OrderStatus.delivered;
+    final displayDate = isDelivered
+        ? order.estimatedDeliveryDate
+        : order.estimatedDeliveryDate;
+    final dateLabel = isDelivered ? "Delivered on" : "Estimated Delivery";
+    final dateColor = isDelivered ? Colors.green : Colors.blue;
 
-        setState(() => _busy = true);
-        try {
-          final art = await backend.getArtworkById(artId);
-          if (art != null && mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ArtworkDetailsPage(artwork: art),
-              ),
-            );
-          } else if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Artwork no longer available")),
-            );
-          }
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Error: ${e.toString()}")),
-            );
-          }
-        } finally {
-          if (mounted) setState(() => _busy = false);
-        }
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => OrderDetailPage(order: order)),
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -172,14 +159,43 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                       const SizedBox(height: 6),
                       Text(
                         "Ordered on ${_formatDate(order.orderedAt)}",
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      _statusChip(order.status),
                     ],
                   ),
                 ),
               ],
+            ),
+
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: dateColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: dateColor.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isDelivered ? Icons.check_circle : Icons.local_shipping,
+                    size: 18,
+                    color: dateColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "$dateLabel: ${_formatDate(displayDate)}",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: dateColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
             if (hasReview) ...[
@@ -257,7 +273,6 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     );
   }
 
-  // ⭐ DO NOT TOUCH UI — ONLY LOGIC FIX
   Future<void> _openRatingDialog(ArtworkOrder order) async {
     int selected = 5;
     final ctrl = TextEditingController();
@@ -330,8 +345,6 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
         );
       }
       if (mounted) setState(() {});
-
-
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -356,20 +369,6 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
           size: 18,
           color: Colors.orange,
         ),
-      ),
-    );
-  }
-
-  Widget _statusChip(OrderStatus status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        color: Colors.black.withOpacity(0.05),
-      ),
-      child: Text(
-        "Status: ${status.name}",
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }

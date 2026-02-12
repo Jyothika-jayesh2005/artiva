@@ -418,6 +418,15 @@ class BackendService {
     return snap.docs.map(_orderFromDoc).toList();
   }
 
+  // ✅ NEW: Stream for real-time updates (admin notification)
+  Stream<List<ArtworkOrder>> watchOrders() {
+    return _db
+        .collection('orders')
+        .orderBy('orderedAt', descending: true)
+        .snapshots()
+        .map((s) => s.docs.map(_orderFromDoc).toList());
+  }
+
   Future<List<ArtworkOrder>> getMyOrdersByUid(String uid) async {
     final snap = await _db
         .collection('orders')
@@ -439,6 +448,56 @@ class BackendService {
     });
   }
 
+  // ✅ NEW: Automatic Status Update
+  Future<void> syncOrderStatuses() async {
+    try {
+      final snap = await _db
+          .collection('orders')
+          .where('status', whereIn: ['pending', 'shipped'])
+          .get(); // Only active
+
+      if (snap.docs.isEmpty) return;
+
+      final now = DateTime.now();
+      final batch = _db.batch();
+      bool changed = false;
+
+      for (var doc in snap.docs) {
+        final data = doc.data();
+        final statusStr = _asString(data['status']);
+        final status = _statusFromString(statusStr);
+        final orderedAt = _asDate(data['orderedAt']);
+
+        final days = now.difference(orderedAt).inDays;
+
+        // Logic:
+        // Pending -> Shipped (after 2 days)
+        // Shipped -> Delivered (after 7 days from ORDER date, or 5 days from shipped)
+        // We use orderedAt as base.
+
+        if (status == OrderStatus.pending && days >= 2) {
+          batch.update(doc.reference, {
+            'status': _statusToString(OrderStatus.shipped),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          changed = true;
+        } else if (status == OrderStatus.shipped && days >= 4) {
+          batch.update(doc.reference, {
+            'status': _statusToString(OrderStatus.delivered),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await batch.commit();
+      }
+    } catch (e) {
+      debugPrint("Error syncing order statuses: $e");
+    }
+  }
+
   Future<void> deleteOrderReview(String orderId) async {
     final orderRef = _db.collection('orders').doc(orderId);
 
@@ -450,7 +509,6 @@ class BackendService {
       final data = orderSnap.data()!;
       final artId = (data['artId'] ?? '').toString().trim();
       final rating = data['rating'];
-      final userId = (data['userId'] ?? '').toString().trim();
 
       DocumentSnapshot<Map<String, dynamic>>? artSnap;
       DocumentReference<Map<String, dynamic>>? artRef;
@@ -677,8 +735,9 @@ class BackendService {
       // 4. Writes
       tx.set(orderRef, payload);
 
+      // 5. Update artwork stock (atomic)
       tx.update(artRef, {
-        'soldQuantity': sold + quantity,
+        'soldQuantity': FieldValue.increment(quantity),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 

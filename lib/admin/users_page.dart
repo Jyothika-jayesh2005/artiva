@@ -64,7 +64,6 @@ class UsersListBody extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           itemCount: users.length,
           itemBuilder: (context, i) {
-            
             final doc = users[i];
             final data = doc.data() as Map<String, dynamic>;
 
@@ -111,87 +110,11 @@ class UsersListBody extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text("Email: $email\nPhone: $phone"),
                 ),
-                trailing: IconButton(
-                  icon: Icon(
-                    archived ? Icons.unarchive_rounded : Icons.archive_rounded,
-                    color: archived ? Colors.green : Colors.orange,
-                  ),
-                  onPressed: () => _confirmArchiveToggle(
-                    context: context,
-                    userId: doc.id,
-                    name: name,
-                    makeArchived: !archived,
-                  ),
-                  tooltip: archived ? "Unarchive user" : "Archive user",
-                ),
               ),
             );
           },
         );
       },
-    );
-  }
-
-  void _confirmArchiveToggle({
-    required BuildContext context,
-    required String userId,
-    required String name,
-    required bool makeArchived,
-  }) {
-    // ✅ ADD THIS LINE (capture messenger from page context)
-    final messenger = ScaffoldMessenger.of(context);
-
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        // ✅ CHANGE '_' to 'dialogCtx'
-        title: Text(makeArchived ? "Archive User" : "Unarchive User"),
-        content: Text(
-          makeArchived
-              ? "Are you sure you want to archive \"$name\"?\n\nArchived users cannot login."
-              : "Are you sure you want to unarchive \"$name\"?\n\nThey will be able to login again.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(dialogCtx), // ✅ CHANGE context -> dialogCtx
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: makeArchived ? Colors.orange : Colors.green,
-            ),
-            onPressed: () async {
-              Navigator.pop(dialogCtx); // ✅ CHANGE context -> dialogCtx
-
-              try {
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(userId)
-                    .set({
-                      'archived': makeArchived,
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    }, SetOptions(merge: true));
-
-                // ✅ CHANGE ScaffoldMessenger.of(context) -> messenger
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      makeArchived
-                          ? "User archived successfully"
-                          : "User unarchived successfully",
-                    ),
-                  ),
-                );
-              } catch (e) {
-                // ✅ CHANGE ScaffoldMessenger.of(context) -> messenger
-                messenger.showSnackBar(SnackBar(content: Text("Failed: $e")));
-              }
-            },
-            child: Text(makeArchived ? "Archive" : "Unarchive"),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -36,6 +36,21 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
   final sizeCmCtrl = TextEditingController();
   final sizeInCtrl = TextEditingController();
 
+  // Artist fields (New)
+  final artistNameCtrl = TextEditingController();
+  final artistStatementCtrl = TextEditingController();
+
+  // Behind the Artwork fields
+  final inspirationCtrl = TextEditingController();
+  final meaningCtrl = TextEditingController();
+  final processCtrl = TextEditingController();
+  final symbolismCtrl = TextEditingController();
+
+  // From the Artist fields
+  final artistQuoteCtrl = TextEditingController();
+  final howMadeItCtrl = TextEditingController();
+  final viewerFeelCtrl = TextEditingController();
+
   String? imagePath;
   String? imageUrl;
 
@@ -71,10 +86,29 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     final coaVal = (art["coa"] ?? "").toString();
     if (coaVal == "Yes" || coaVal == "No") coa = coaVal;
 
-    sizeCmCtrl.text =
-        (art["size_cm"] ?? "").toString().replaceAll("-", "").trim();
-    sizeInCtrl.text =
-        (art["size_in"] ?? "").toString().replaceAll("-", "").trim();
+    sizeCmCtrl.text = (art["size_cm"] ?? "")
+        .toString()
+        .replaceAll("-", "")
+        .trim();
+    sizeInCtrl.text = (art["size_in"] ?? "")
+        .toString()
+        .replaceAll("-", "")
+        .trim();
+
+    // Load Artist Info (New)
+    artistNameCtrl.text = (art["artistName"] ?? "").toString();
+    artistStatementCtrl.text = (art["artistStatement"] ?? "").toString();
+
+    // Load Behind the Artwork fields
+    inspirationCtrl.text = (art["inspiration"] ?? "").toString();
+    meaningCtrl.text = (art["meaning"] ?? "").toString();
+    processCtrl.text = (art["process"] ?? "").toString();
+    symbolismCtrl.text = (art["symbolism"] ?? "").toString();
+
+    // Load From the Artist fields
+    artistQuoteCtrl.text = (art["artistQuote"] ?? "").toString();
+    howMadeItCtrl.text = (art["howMadeItNote"] ?? "").toString();
+    viewerFeelCtrl.text = (art["viewerFeelNote"] ?? "").toString();
   }
 
   @override
@@ -85,6 +119,18 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     quantityCtrl.dispose();
     sizeCmCtrl.dispose();
     sizeInCtrl.dispose();
+    // Disposal New fields
+    artistNameCtrl.dispose();
+    artistStatementCtrl.dispose();
+
+    inspirationCtrl.dispose();
+    meaningCtrl.dispose();
+    processCtrl.dispose();
+    symbolismCtrl.dispose();
+    artistQuoteCtrl.dispose();
+    howMadeItCtrl.dispose();
+    viewerFeelCtrl.dispose();
+
     super.dispose();
   }
 
@@ -132,10 +178,12 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     }
 
     // 🔥 FIX STARTS HERE
-    final int prevTotal =
-        _isEdit ? _toInt(widget.editArtwork?["totalQuantity"]) : 0;
-    final int prevSold =
-        _isEdit ? _toInt(widget.editArtwork?["soldQuantity"]) : 0;
+    final int prevTotal = _isEdit
+        ? _toInt(widget.editArtwork?["totalQuantity"])
+        : 0;
+    final int prevSold = _isEdit
+        ? _toInt(widget.editArtwork?["soldQuantity"])
+        : 0;
 
     final bool wasOutOfStock = _isEdit && prevSold >= prevTotal;
 
@@ -177,12 +225,29 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
         "paper": selectedMaterial,
         "coa": coa,
         "description": descriptionCtrl.text.trim(),
-        "size_cm": sizeCmCtrl.text.trim().isEmpty ? "-" : sizeCmCtrl.text.trim(),
-        "size_in": sizeInCtrl.text.trim().isEmpty ? "-" : sizeInCtrl.text.trim(),
+        "size_cm": sizeCmCtrl.text.trim().isEmpty
+            ? "-"
+            : sizeCmCtrl.text.trim(),
+        "size_in": sizeInCtrl.text.trim().isEmpty
+            ? "-"
+            : sizeInCtrl.text.trim(),
         "totalQuantity": totalQty,
         "soldQuantity": soldQty,
         "createdAt":
-            widget.editArtwork?["createdAt"] ?? DateTime.now().toIso8601String(),
+            widget.editArtwork?["createdAt"] ??
+            DateTime.now().toIso8601String(),
+        // New fields
+        "artistName": artistNameCtrl.text.trim(),
+        "artistStatement": artistStatementCtrl.text.trim(),
+        // Behind the Artwork
+        "inspiration": inspirationCtrl.text.trim(),
+        "meaning": meaningCtrl.text.trim(),
+        "process": processCtrl.text.trim(),
+        "symbolism": symbolismCtrl.text.trim(),
+        // From the Artist
+        "artistQuote": artistQuoteCtrl.text.trim(),
+        "howMadeItNote": howMadeItCtrl.text.trim(),
+        "viewerFeelNote": viewerFeelCtrl.text.trim(),
       };
 
       await backend.upsertArtwork(artwork);
@@ -197,8 +262,9 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
 
   @override
   Widget build(BuildContext context) {
-    final preview =
-        imagePath?.trim().isNotEmpty == true ? imagePath! : imageUrl ?? "";
+    final preview = imagePath?.trim().isNotEmpty == true
+        ? imagePath!
+        : imageUrl ?? "";
 
     return AdminScaffold(
       title: _isEdit ? "Edit Artwork" : "Add Artwork",
@@ -229,8 +295,11 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
 
               _input("Artwork Title", titleCtrl),
               _input("Price", priceCtrl, keyboard: TextInputType.number),
-              _input("Total Quantity", quantityCtrl,
-                  keyboard: TextInputType.number),
+              _input(
+                "Total Quantity",
+                quantityCtrl,
+                keyboard: TextInputType.number,
+              ),
 
               // ✅ Category
               _dropdown(
@@ -244,7 +313,13 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
               _dropdown(
                 label: "Material",
                 value: selectedMaterial,
-                items: const ["Canvas", "Paper", "Wood", "Acrylic Sheet", "Other"],
+                items: const [
+                  "Canvas",
+                  "Paper",
+                  "Wood",
+                  "Acrylic Sheet",
+                  "Other",
+                ],
                 onChanged: (v) => setState(() => selectedMaterial = v),
               ),
 
@@ -259,7 +334,6 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
               _input("Size (cm)", sizeCmCtrl),
               _input("Size (in)", sizeInCtrl),
 
-              // ✅ Description
               _input(
                 "Description",
                 descriptionCtrl,
@@ -267,11 +341,56 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
                 maxLines: 4,
               ),
 
+              const Divider(height: 30, thickness: 1),
+              const Text(
+                "Artist Information",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              _input("Artist Name", artistNameCtrl),
+              _input(
+                "Artist Statement",
+                artistStatementCtrl,
+                keyboard: TextInputType.multiline,
+                maxLines: 3,
+              ),
+
+              const Divider(height: 30, thickness: 1),
+              const Text(
+                "Behind the Artwork",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              _input("Inspiration", inspirationCtrl, maxLines: 2),
+              _input("Meaning", meaningCtrl, maxLines: 2),
+              _input("Process", processCtrl, maxLines: 2),
+              _input("Symbolism", symbolismCtrl, maxLines: 2),
+
+              const Divider(height: 30, thickness: 1),
+              const Text(
+                "From the Artist",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              _input("Artist Quote", artistQuoteCtrl, maxLines: 2),
+              _input("How it was made", howMadeItCtrl, maxLines: 3),
+              _input("What viewers should feel", viewerFeelCtrl, maxLines: 2),
+
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF8C1A),
+                    foregroundColor: Colors.white,
+                    elevation: 12, // stronger = 3D feel
+                    shadowColor: Colors.black.withOpacity(0.5),
+
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                   onPressed: _saveArtwork,
                   child: _saving
                       ? const SizedBox(
@@ -308,7 +427,7 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
         controller: c,
         keyboardType: keyboard,
         maxLines: maxLines,
-        validator: (v) => v == null || v.isEmpty ? "Required" : null,
+        // validator: (v) => v == null || v.isEmpty ? "Required" : null, // Removed generic required validation to allow optional fields
         decoration: InputDecoration(
           labelText: label,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -328,10 +447,7 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
       child: DropdownButtonFormField<String>(
         value: value,
         items: items
-            .map((e) => DropdownMenuItem<String>(
-                  value: e,
-                  child: Text(e),
-                ))
+            .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
             .toList(),
         onChanged: (v) {
           if (v == null) return;

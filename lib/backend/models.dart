@@ -51,7 +51,6 @@ class AppUser {
   }
 }
 
-
 // ---------------- EXHIBITION ----------------
 
 class Exhibition {
@@ -101,7 +100,7 @@ class Exhibition {
       "id": id,
       "title": title,
       "venue": venue,
-       "dateTime": Timestamp.fromDate(dateTime),
+      "dateTime": Timestamp.fromDate(dateTime),
       "description": description,
       "totalSeats": totalSeats,
       "bookedSeats": bookedSeats,
@@ -202,6 +201,11 @@ class ArtworkOrder {
     this.ratedAt,
     this.ratingLocked = false,
   });
+
+  // ✅ HELPERS for UI
+  DateTime get estimatedDeliveryDate => orderedAt.add(const Duration(days: 4));
+  DateTime get shippedDate => orderedAt.add(const Duration(days: 2));
+  OrderStatus get effectiveStatus => status;
 
   // ✅ THIS IS THE MISSING PIECE (CRITICAL)
   ArtworkOrder copyWith({

@@ -319,10 +319,15 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
   Future<void> _pickDateTime() async {
     final now = DateTime.now();
 
+    final safeFirstDate =
+        (_selectedDateTime != null && _selectedDateTime!.isBefore(now))
+        ? _selectedDateTime!
+        : now;
+
     final date = await showDatePicker(
       context: context,
-      firstDate: now,
-      lastDate: DateTime(now.year + 2),
+      firstDate: safeFirstDate,
+      lastDate: DateTime(now.year + 5), // extended for safety
       initialDate: _selectedDateTime ?? now,
     );
     if (date == null) return;
@@ -353,7 +358,20 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
     final pricePerSeat = int.parse(_priceCtrl.text.trim());
 
     final old = widget.existing;
-    final bookedSeats = old?.bookedSeats ?? 0;
+    int bookedSeats = old?.bookedSeats ?? 0;
+
+    // ✅ NEW: If we are "reactivating" a past exhibition for a future date,
+    // reset the booked seats so it starts fresh.
+    bool wasPast = false;
+    if (old != null) {
+      wasPast = old.dateTime.isBefore(DateTime.now());
+    }
+
+    final bool isNewFuture = _selectedDateTime!.isAfter(DateTime.now());
+
+    if (wasPast && isNewFuture) {
+      bookedSeats = 0; // Reset for new run
+    }
 
     if (totalSeats < bookedSeats) {
       _snack("Total seats cannot be less than booked ($bookedSeats)");
@@ -387,7 +405,7 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
         bookedSeats: bookedSeats,
         pricePerSeat: pricePerSeat,
         imageUrl: finalImageUrl,
-        isArchived: old?.isArchived ?? false,
+        isArchived: _selectedDateTime!.isBefore(DateTime.now()) ? true : false,
       );
 
       await backend.upsertExhibition(ex);
@@ -397,11 +415,20 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
       if (widget.onSuccess != null) {
         // ✅ Tab-based mode: clear form and notify
         _clearForm();
-        _snack("Exhibition added successfully!");
+        _snack(
+          "Exhibition added successfully! (${ex.isArchived ? 'Archived' : 'Active'})",
+        );
         widget.onSuccess!();
       } else {
         // ✅ Push-based mode (Edit): pop
         Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Exhibition updated! Status: ${ex.isArchived ? 'Archived' : 'Active'}",
+            ),
+          ),
+        );
       }
     } catch (e) {
       _snack(e.toString().replaceFirst('Exception: ', ''));

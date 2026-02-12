@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:artiva/customer/artist_info_sheet.dart';
 import 'package:flutter/material.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,7 +9,6 @@ import 'package:artiva/widgets/customer_scaffold.dart';
 
 import 'package:artiva/auth/auth_service.dart';
 import 'package:artiva/backend/backend_service.dart';
-
 
 class ArtworkDetailsPage extends StatefulWidget {
   final Map<String, dynamic> artwork;
@@ -106,6 +106,9 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
       SnackBar(content: Text(msg), duration: const Duration(milliseconds: 900)),
     );
   }
+
+  // ✅ NEW: Quantity state
+  int _quantity = 1;
 
   @override
   Widget build(BuildContext context) {
@@ -238,9 +241,9 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                           ),
 
                           // ⭐ overall rating
-                          
+
                           // ⭐ rating badge (STATIC FROM ARTWORK DOC)
-                              _badge(Icons.star, ratingText, Colors.orange),
+                          _badge(Icons.star, ratingText, Colors.orange),
                         ],
                       ),
 
@@ -296,6 +299,52 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                         ],
                       ),
 
+                      // ✅ QUANTITY SELECTOR
+                      if (remainingQty > 0) ...[
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            const Text(
+                              "Quantity:",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.remove, size: 20),
+                                    onPressed: _quantity > 1
+                                        ? () => setState(() => _quantity--)
+                                        : null,
+                                  ),
+                                  Text(
+                                    "$_quantity",
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.add, size: 20),
+                                    onPressed: _quantity < remainingQty
+                                        ? () => setState(() => _quantity++)
+                                        : null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+
                       const SizedBox(height: 22),
 
                       const Text(
@@ -329,6 +378,9 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                         Colors.orange,
                       ),
 
+                      // ... (existing imports)
+
+                      // ... inside _ArtworkDetailsPageState build method ...
                       _highlight(
                         Icons.verified,
                         "Certificate of Authenticity",
@@ -338,6 +390,43 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                         (widget.artwork["coa"] ?? "No").toString() == "Yes"
                             ? Colors.green
                             : Colors.grey,
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // ✅ MEET THE ARTIST BUTTON
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) =>
+                                  ArtistInfoSheet(artwork: widget.artwork),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.palette,
+                            color: Color(0xFFE16417),
+                          ),
+                          label: const Text(
+                            "Know the Artist",
+                            style: TextStyle(
+                              color: Color(0xFFE16417),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: const BorderSide(color: Color(0xFFE16417)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
                       ),
 
                       const SizedBox(height: 18),
@@ -403,7 +492,9 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                     children: [
                       const Text("Price", style: TextStyle(color: Colors.grey)),
                       Text(
-                        priceText,
+                        _quantity > 1
+                            ? _formatIndianCurrency(priceValue * _quantity)
+                            : priceText,
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -429,6 +520,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                                   artwork: Map<String, String>.from(
                                     safeStringMap,
                                   ),
+                                  quantity: _quantity, // ✅ Pass quantity
                                 ),
                               ),
                             );
