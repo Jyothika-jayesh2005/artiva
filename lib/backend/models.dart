@@ -21,7 +21,10 @@ class AppUser {
     required this.role,
     this.photoUrl = "",
     this.archived = false,
+    this.lastAuctionCheck,
   });
+
+  final DateTime? lastAuctionCheck;
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {
     final roleStr = (map["role"] ?? "user").toString().toLowerCase();
@@ -35,6 +38,7 @@ class AppUser {
       role: role,
       photoUrl: (map["photoUrl"] ?? "").toString(),
       archived: map["archived"] == true,
+      lastAuctionCheck: _parseDateTime(map["lastAuctionCheck"]),
     );
   }
 
@@ -46,6 +50,9 @@ class AppUser {
       "role": role == Role.admin ? "admin" : "user",
       "photoUrl": photoUrl,
       "archived": archived,
+      "lastAuctionCheck": lastAuctionCheck != null
+          ? Timestamp.fromDate(lastAuctionCheck!)
+          : null,
       "updatedAt": FieldValue.serverTimestamp(), // needs cloud_firestore import
     };
   }
@@ -248,6 +255,196 @@ class ArtworkRatingSummary {
   const ArtworkRatingSummary({required this.avg, required this.count});
 
   String get label => avg == 0 ? "—" : avg.toStringAsFixed(1);
+}
+
+// ---------------- AUCTION ----------------
+
+enum AuctionStatus { scheduled, live, ended, sold }
+
+class Auction {
+  final String id;
+  final String artId;
+  final String artTitle;
+  final String artImageUrl;
+  final String artistName;
+  final String description;
+  final String size;
+  final String aboutPiece;
+  final DateTime startTime;
+  final DateTime endTime;
+  final int startingBid;
+  final int minIncrement;
+  final int currentBid;
+  final String? highestBidderId;
+  final String? highestBidderName;
+  final AuctionStatus status;
+  final DateTime createdAt;
+  final String createdBy;
+
+  Auction({
+    required this.id,
+    required this.artId,
+    required this.artTitle,
+    required this.artImageUrl,
+    required this.artistName,
+    required this.description,
+    required this.size,
+    required this.aboutPiece,
+    required this.startTime,
+    required this.endTime,
+    required this.startingBid,
+    required this.minIncrement,
+    required this.currentBid,
+    this.highestBidderId,
+    this.highestBidderName,
+    required this.status,
+    required this.createdAt,
+    required this.createdBy,
+  });
+
+  factory Auction.fromMap(String id, Map<String, dynamic> map) {
+    return Auction(
+      id: id,
+      artId: (map["artId"] ?? "").toString(),
+      artTitle: (map["artTitle"] ?? "").toString(),
+      artImageUrl: (map["artImageUrl"] ?? "").toString(),
+      artistName: (map["artistName"] ?? "").toString(),
+      description: (map["description"] ?? "").toString(),
+      size: (map["size"] ?? "").toString(),
+      aboutPiece: (map["aboutPiece"] ?? "").toString(),
+      startTime: _parseDateTime(map["startTime"]),
+      endTime: _parseDateTime(map["endTime"]),
+      startingBid: _toInt(map["startingBid"]),
+      minIncrement: _toInt(map["minIncrement"]),
+      currentBid: _toInt(map["currentBid"]),
+      highestBidderId: map["highestBidderId"]?.toString(),
+      highestBidderName: map["highestBidderName"]?.toString(),
+      status: _parseAuctionStatus(map["status"]),
+      createdAt: _parseDateTime(map["createdAt"]),
+      createdBy: (map["createdBy"] ?? "").toString(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      "artId": artId,
+      "artTitle": artTitle,
+      "artImageUrl": artImageUrl,
+      "artistName": artistName,
+      "description": description,
+      "size": size,
+      "aboutPiece": aboutPiece,
+      "startTime": Timestamp.fromDate(startTime),
+      "endTime": Timestamp.fromDate(endTime),
+      "startingBid": startingBid,
+      "minIncrement": minIncrement,
+      "currentBid": currentBid,
+      "highestBidderId": highestBidderId,
+      "highestBidderName": highestBidderName,
+      "status": status.name,
+      "createdAt": Timestamp.fromDate(createdAt),
+      "createdBy": createdBy,
+    };
+  }
+}
+
+AuctionStatus _parseAuctionStatus(dynamic v) {
+  final s = v?.toString().toLowerCase() ?? "";
+  if (s == "live") return AuctionStatus.live;
+  if (s == "ended") return AuctionStatus.ended;
+  if (s == "sold") return AuctionStatus.sold;
+  return AuctionStatus.scheduled;
+}
+
+// ---------------- BID ----------------
+
+class Bid {
+  final String id;
+  final int amount;
+  final String userId;
+  final String userName;
+  final DateTime createdAt;
+
+  Bid({
+    required this.id,
+    required this.amount,
+    required this.userId,
+    required this.userName,
+    required this.createdAt,
+  });
+
+  factory Bid.fromMap(String id, Map<String, dynamic> map) {
+    return Bid(
+      id: id,
+      amount: _toInt(map["amount"]),
+      userId: (map["userId"] ?? "").toString(),
+      userName: (map["userName"] ?? "").toString(),
+      createdAt: _parseDateTime(map["createdAt"]),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      "amount": amount,
+      "userId": userId,
+      "userName": userName,
+      "createdAt": FieldValue.serverTimestamp(),
+    };
+  }
+}
+
+// ---------------- NOTIFICATION ----------------
+
+enum NotificationType { new_auction, win, reminder }
+
+class AppNotification {
+  final String id;
+  final String title;
+  final String body;
+  final NotificationType type;
+  final String? auctionId;
+  final bool read;
+  final DateTime createdAt;
+
+  AppNotification({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.type,
+    this.auctionId,
+    this.read = false,
+    required this.createdAt,
+  });
+
+  factory AppNotification.fromMap(String id, Map<String, dynamic> map) {
+    return AppNotification(
+      id: id,
+      title: (map["title"] ?? "").toString(),
+      body: (map["body"] ?? "").toString(),
+      type: _parseNotifType(map["type"]),
+      auctionId: map["auctionId"]?.toString(),
+      read: map["read"] == true,
+      createdAt: _parseDateTime(map["createdAt"]),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      "title": title,
+      "body": body,
+      "type": type.name,
+      "auctionId": auctionId,
+      "read": read,
+      "createdAt": FieldValue.serverTimestamp(),
+    };
+  }
+}
+
+NotificationType _parseNotifType(dynamic v) {
+  final s = v?.toString().toLowerCase() ?? "";
+  if (s == "win") return NotificationType.win;
+  if (s == "reminder") return NotificationType.reminder;
+  return NotificationType.new_auction;
 }
 
 // ---------------- HELPERS ----------------

@@ -4,6 +4,7 @@ import 'package:artiva/customer/artwork_list.dart';
 import 'package:artiva/customer/exhibition_screen.dart';
 import 'package:artiva/customer/home_screen.dart';
 import 'package:artiva/auth/auth_service.dart';
+import 'package:artiva/customer/auctions/auction_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CustomerScaffold extends StatelessWidget {
@@ -18,6 +19,9 @@ class CustomerScaffold extends StatelessWidget {
   // Example: search bar, category chips, etc.
   final Widget? headerBottom;
 
+  // ✅ NEW: Force showing back button even if currentIndex != -1
+  final bool showBackButton;
+
   const CustomerScaffold({
     super.key,
     required this.body,
@@ -25,7 +29,11 @@ class CustomerScaffold extends StatelessWidget {
     this.title = "Artiva",
     this.onBack,
     this.headerBottom,
+    this.bottomNavigationBar,
+    this.showBackButton = false,
   });
+
+  final Widget? bottomNavigationBar;
 
   void _onNavTap(BuildContext context, int index) {
     if (index == currentIndex) return;
@@ -39,10 +47,20 @@ class CustomerScaffold extends StatelessWidget {
         page = const ArtworkListPage();
         break;
       case 2:
+        page = const AuctionScreen();
+        break;
+      case 3:
         page = const ExhibitionScreen();
         break;
       default:
         page = const ArtHomePage();
+    }
+
+    if (index == 2 && authService.currentUser != null) {
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(authService.currentUser!.uid)
+          .update({'lastAuctionCheck': FieldValue.serverTimestamp()});
     }
 
     Navigator.pushAndRemoveUntil(
@@ -90,8 +108,8 @@ class CustomerScaffold extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      // Back button only for inner pages
-                      if (currentIndex == -1)
+                      // Back button only for inner pages OR if forced
+                      if (currentIndex == -1 || showBackButton)
                         IconButton(
                           icon: const Icon(
                             Icons.arrow_back,
@@ -135,31 +153,34 @@ class CustomerScaffold extends StatelessWidget {
       ),
 
       // ================= BOTTOM NAV =================
-      bottomNavigationBar: currentIndex == -1
-          ? null
-          : Container(
-              margin: const EdgeInsets.fromLTRB(18, 0, 18, 22),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(36),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.12),
-                    blurRadius: 22,
-                    offset: const Offset(0, 10),
+      bottomNavigationBar:
+          bottomNavigationBar ??
+          (currentIndex == -1
+              ? null
+              : Container(
+                  margin: const EdgeInsets.fromLTRB(18, 0, 18, 22),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(36),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 22,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _navIcon(context, Icons.home, 0),
-                  _navIcon(context, Icons.palette, 1),
-                  _navIcon(context, Icons.event, 2),
-                ],
-              ),
-            ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _navIcon(context, Icons.home, 0),
+                      _navIcon(context, Icons.palette, 1),
+                      _AuctionNavIconWithBadge(currentIndex: currentIndex),
+                      _navIcon(context, Icons.event, 3),
+                    ],
+                  ),
+                )),
     );
   }
 
@@ -179,65 +200,108 @@ class CustomerScaffold extends StatelessWidget {
 class _ProfileIconWithBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final user = authService.currentUser;
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        );
+      },
+      child: const CircleAvatar(
+        radius: 18,
+        backgroundColor: Colors.white,
+        child: Icon(Icons.person_outline, color: Colors.black),
+      ),
+    );
+  }
+}
 
-    // ✅ FIX: Don't access Firestore if user is not authenticated
+class _AuctionNavIconWithBadge extends StatelessWidget {
+  final int currentIndex;
+  const _AuctionNavIconWithBadge({required this.currentIndex});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = authService.currentUser;
+    final active = currentIndex == 2;
+
     if (user == null) {
-      return GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
-          );
-        },
-        child: const CircleAvatar(
-          radius: 18,
-          backgroundColor: Colors.white,
-          child: Icon(Icons.person_outline, color: Colors.black),
-        ),
+      return Icon(
+        Icons.gavel,
+        size: 26,
+        color: active ? const Color(0xFFFF9F1C) : Colors.grey,
       );
     }
 
-    return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('support_threads')
+          .collection('users')
           .doc(user.uid)
+          .collection('notifications')
+          .where('read', isEqualTo: false)
+          .limit(1)
           .snapshots(),
       builder: (context, snapshot) {
-        final data = snapshot.data?.data() as Map<String, dynamic>?;
-        final bool unread = data != null && data['userUnread'] == true;
+        final bool personalUnread =
+            snapshot.hasData && snapshot.data!.docs.isNotEmpty;
 
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('notifications')
+              .where(
+                'createdAt',
+                isGreaterThan:
+                    user.lastAuctionCheck ??
+                    DateTime.now().subtract(const Duration(days: 7)),
+              )
+              .limit(1)
+              .snapshots(),
+          builder: (context, globalSnap) {
+            final bool globalUnread =
+                globalSnap.hasData && globalSnap.data!.docs.isNotEmpty;
+            final bool unread = personalUnread || globalUnread;
+
+            return GestureDetector(
+              onTap: () {
+                if (active) return;
+                // Update timestamp before navigating
+                FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .update({'lastAuctionCheck': FieldValue.serverTimestamp()});
+
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AuctionScreen()),
+                  (route) => false,
+                );
+              },
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    Icons.gavel,
+                    size: 26,
+                    color: active ? const Color(0xFFFF9F1C) : Colors.grey,
+                  ),
+                  if (unread && !active)
+                    Positioned(
+                      right: -4,
+                      top: -4,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             );
           },
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person_outline, color: Colors.black),
-              ),
-              if (unread)
-                Positioned(
-                  right: -2,
-                  top: -2,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
-                ),
-            ],
-          ),
         );
       },
     );

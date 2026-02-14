@@ -16,6 +16,7 @@ class CloudinaryService {
   // ✅ Your folders (keeps Cloudinary organized)
   static const String artworkFolder = "artworks";
   static const String exhibitionFolder = "exhibitions";
+  static const String auctionFolder = "auctions";
 
   // ✅ NEW: Profile folder
   static const String profileFolder = "profiles";
@@ -25,14 +26,21 @@ class CloudinaryService {
   /// Usage:
   ///   - For artworks:     uploadArtworkImage(file: File(path))
   ///   - For exhibitions: uploadExhibitionImage(file: File(path))
+  ///   - For auctions:    uploadAuctionImage(file: File(path))
   ///   - For profile:     uploadProfileImage(file: File(path))
-  ///
-  /// If you want custom preset/folder, call uploadImageRaw().
   static Future<String> uploadArtworkImage({required File file}) {
     return uploadImageRaw(
       file: file,
       uploadPreset: artworkPreset,
       folder: artworkFolder,
+    );
+  }
+
+  static Future<String> uploadAuctionImage({required File file}) {
+    return uploadImageRaw(
+      file: file,
+      uploadPreset: artworkPreset,
+      folder: auctionFolder,
     );
   }
 
@@ -115,6 +123,8 @@ class CloudinaryService {
   /// Optional helper: delete an uploaded asset by public_id.
   /// NOTE: This requires signed requests (API secret) -> NOT usable with unsigned-only setup.
   static Future<void> deleteNotSupportedInUnsigned() async {
-    throw Exception("Delete requires signed API calls; unsigned preset cannot delete.");
+    throw Exception(
+      "Delete requires signed API calls; unsigned preset cannot delete.",
+    );
   }
 }

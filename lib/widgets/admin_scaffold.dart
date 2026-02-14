@@ -5,6 +5,7 @@ class AdminScaffold extends StatelessWidget {
   final Widget body;
   final List<Widget>? actions;
   final bool showBack;
+  final Widget? floatingActionButton;
 
   const AdminScaffold({
     super.key,
@@ -12,6 +13,7 @@ class AdminScaffold extends StatelessWidget {
     required this.body,
     this.actions,
     this.showBack = false,
+    this.floatingActionButton,
   });
 
   static const Color primary = Color(0xFFFF8C1A);
@@ -20,6 +22,7 @@ class AdminScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
+      floatingActionButton: floatingActionButton,
       body: SafeArea(
         child: Column(
           children: [

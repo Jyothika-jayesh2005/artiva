@@ -12,13 +12,33 @@ import 'package:artiva/customer/home_screen.dart';
 
 import 'package:artiva/auth/splash_screen.dart';
 import 'package:artiva/auth/onboarding_screen.dart';
+import 'package:artiva/customer/notifications/notifications_page.dart';
+import 'package:artiva/backend/notification_service.dart';
+import 'package:artiva/services/local_notification_service.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await LocalNotificationService.init();
+  NotificationService().startGlobalListener();
 
   authService.startAuthListener();
+
+  // ✅ NEW: Handle user-specific notification listener
+  authService.userNotifier.addListener(() {
+    final user = authService.currentUser;
+    if (user != null) {
+      NotificationService().startUserListener(user.uid);
+    } else {
+      NotificationService().stopListeners();
+      NotificationService().startGlobalListener();
+    }
+  });
 
   runApp(const ArtivaApp());
 }
@@ -29,6 +49,8 @@ class ArtivaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       home: const SplashScreen(),
       routes: {
@@ -39,6 +61,7 @@ class ArtivaApp extends StatelessWidget {
         '/register': (_) => const RegisterScreen(),
         '/home': (_) => const ArtHomePage(),
         '/admin': (_) => const AdminDashboard(),
+        '/notifications': (_) => const NotificationsPage(),
       },
     );
   }

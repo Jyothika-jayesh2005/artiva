@@ -314,7 +314,10 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
           children: [
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const CircleAvatar(child: Icon(Icons.shopping_bag)),
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFFFF8C1A).withOpacity(0.1),
+                child: const Icon(Icons.shopping_bag, color: Color(0xFFFF8C1A)),
+              ),
               title: Text(
                 o.artTitle,
                 style: const TextStyle(fontWeight: FontWeight.bold),

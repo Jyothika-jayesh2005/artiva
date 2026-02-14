@@ -3,7 +3,9 @@ import 'package:artiva/widgets/customer_scaffold.dart';
 import 'package:artiva/widgets/artwork_card.dart';
 import 'package:artiva/customer/artwork_list.dart';
 import 'package:artiva/customer/artwork_detail.dart';
-import 'package:artiva/backend/backend_provider.dart'; // ✅ global backend
+import 'package:artiva/backend/backend_provider.dart';
+import 'package:artiva/auth/auth_service.dart';
+import 'package:artiva/backend/notification_service.dart';
 
 class ArtHomePage extends StatefulWidget {
   const ArtHomePage({super.key});
@@ -27,7 +29,22 @@ class _ArtHomePageState extends State<ArtHomePage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Start listening for user notifications only when Home Screen loads
+    final user = authService.currentUser;
+    if (user != null) {
+      NotificationService().startUserListener(user.uid);
+    }
+  }
+
+  @override
   void dispose() {
+    // Stop listening when Home Screen is disposed (e.g. logout)
+    NotificationService().stopListeners();
+    // Restart global listener for safety
+    NotificationService().startGlobalListener();
+
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -50,11 +67,7 @@ class _ArtHomePageState extends State<ArtHomePage> {
       currentIndex: 0,
       title: "Artiva",
       headerBottom: Column(
-        children: [
-          _searchBar(),
-          const SizedBox(height: 12),
-          _categories(),
-        ],
+        children: [_searchBar(), const SizedBox(height: 12), _categories()],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.only(top: 14),

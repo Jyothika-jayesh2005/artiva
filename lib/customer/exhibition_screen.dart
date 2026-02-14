@@ -25,7 +25,7 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
   @override
   Widget build(BuildContext context) {
     return CustomerScaffold(
-      currentIndex: 2,
+      currentIndex: 3,
       title: "Exhibitions",
       body: FutureBuilder<List<Exhibition>>(
         future: _load(),
@@ -146,10 +146,7 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
                   const SizedBox(height: 6),
 
                   // Venue row
-                  _metaRow(
-                    icon: Icons.location_on,
-                    text: e.venue,
-                  ),
+                  _metaRow(icon: Icons.location_on, text: e.venue),
 
                   const SizedBox(height: 12),
                   Divider(color: Colors.black.withOpacity(0.08), height: 1),
@@ -249,7 +246,9 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
             style: TextStyle(
               fontSize: 12.8,
               fontWeight: FontWeight.w800,
-              color: valueColor == accent ? const Color(0xFF1F2937) : valueColor,
+              color: valueColor == accent
+                  ? const Color(0xFF1F2937)
+                  : valueColor,
             ),
           ),
         ),

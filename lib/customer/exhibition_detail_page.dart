@@ -70,6 +70,10 @@ class ExhibitionDetailPage extends StatelessWidget {
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE16417),
+                  foregroundColor: Colors.white,
+                ),
                 onPressed: remaining == 0
                     ? null
                     : () async {
@@ -111,10 +115,12 @@ class ExhibitionDetailPage extends StatelessWidget {
                 DropdownButton<int>(
                   value: selected,
                   items: List.generate(maxSeats, (i) => i + 1)
-                      .map((n) => DropdownMenuItem(
-                            value: n,
-                            child: Text(n.toString()),
-                          ))
+                      .map(
+                        (n) => DropdownMenuItem(
+                          value: n,
+                          child: Text(n.toString()),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setLocal(() => selected = v ?? 1),
                 ),
@@ -123,10 +129,16 @@ class ExhibitionDetailPage extends StatelessWidget {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFE16417),
+                ),
                 child: const Text("Cancel"),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, selected),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFE16417),
+                ),
                 child: const Text("Continue"),
               ),
             ],

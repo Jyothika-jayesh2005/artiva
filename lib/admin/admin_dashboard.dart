@@ -16,8 +16,10 @@ import 'package:artiva/admin/reviews_page.dart';
 // Separate booking pages
 import 'exhibition_bookings_page.dart';
 import 'artwork_orders_page.dart';
+import 'package:artiva/admin/auctions/admin_manage_auctions.dart';
+import 'package:artiva/admin/auctions/auction_overview_body.dart';
 
-enum AdminMode { exhibition, artwork }
+enum AdminMode { exhibition, artwork, auction }
 
 enum ExhibitionDashFilter { all, active, unarchive, soldOut }
 
@@ -151,6 +153,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
           BottomNavigationBarItem(
             icon: Icon(Icons.rate_review_rounded),
             label: "Reviews",
+          ),
+        ],
+      );
+    }
+
+    if (mode == AdminMode.auction) {
+      return _NavConfig(
+        pages: [dashboardPage, const AdminManageAuctions()],
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_rounded),
+            label: "Dashboard",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.gavel_rounded),
+            label: "Auctions",
           ),
         ],
       );
@@ -385,14 +403,19 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome> {
             child: Row(
               children: [
                 _AdminDashboardHome._segTab(
-                  "Exhibition Bookings",
+                  "Exhibition",
                   active: isExhibition,
                   onTap: () => widget.onModeChanged(AdminMode.exhibition),
                 ),
                 _AdminDashboardHome._segTab(
-                  "Artwork Orders",
+                  "Artwork",
                   active: isArtwork,
                   onTap: () => widget.onModeChanged(AdminMode.artwork),
+                ),
+                _AdminDashboardHome._segTab(
+                  "Auction",
+                  active: widget.mode == AdminMode.auction,
+                  onTap: () => widget.onModeChanged(AdminMode.auction),
                 ),
               ],
             ),
@@ -426,13 +449,13 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome> {
           const SizedBox(height: 18),
 
           // Status chips (UNCHANGED)
-          SizedBox(
-            height: 42,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                const SizedBox(width: 10),
-                if (isExhibition) ...[
+          if (isExhibition) ...[
+            SizedBox(
+              height: 42,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  const SizedBox(width: 10),
                   _ChipLike(
                     text: "All",
                     active: _exFilter == ExhibitionDashFilter.all,
@@ -463,33 +486,10 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome> {
                     ),
                   ),
                 ],
-
-                if (isArtwork) ...[
-                  _ChipLike(
-                    text: "All",
-                    active: _userFilter == UserFilter.all,
-                    onTap: () => setState(() => _userFilter = UserFilter.all),
-                  ),
-                  const SizedBox(width: 10),
-                  _ChipLike(
-                    text: "Active",
-                    active: _userFilter == UserFilter.active,
-                    onTap: () =>
-                        setState(() => _userFilter = UserFilter.active),
-                  ),
-                  const SizedBox(width: 10),
-                  _ChipLike(
-                    text: "Archived",
-                    active: _userFilter == UserFilter.archived,
-                    onTap: () =>
-                        setState(() => _userFilter = UserFilter.archived),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-
-          const SizedBox(height: 18),
+            const SizedBox(height: 18),
+          ],
 
           Container(
             height: 380,
@@ -506,6 +506,8 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome> {
             ),
             child: (isArtwork)
                 ? UsersListBody(filter: _userFilter)
+                : (widget.mode == AdminMode.auction)
+                ? const AuctionOverviewBody()
                 : ExhibitionManagementBody(filter: _exFilter),
           ),
         ],
