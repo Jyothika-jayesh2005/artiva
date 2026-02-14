@@ -427,10 +427,15 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
         controller: c,
         keyboardType: keyboard,
         maxLines: maxLines,
-        // validator: (v) => v == null || v.isEmpty ? "Required" : null, // Removed generic required validation to allow optional fields
+        cursorColor: const Color(0xFFFF8C1A), // ✅ Orange cursor
         decoration: InputDecoration(
           labelText: label,
+          floatingLabelStyle: const TextStyle(color: Color(0xFFFF8C1A)),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFFF8C1A), width: 2),
+          ),
         ),
       ),
     );
@@ -455,7 +460,12 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
         },
         decoration: InputDecoration(
           labelText: label,
+          floatingLabelStyle: const TextStyle(color: Color(0xFFFF8C1A)),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFFF8C1A), width: 2),
+          ),
         ),
       ),
     );

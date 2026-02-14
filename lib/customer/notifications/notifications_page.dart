@@ -67,52 +67,136 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
+    // Icon based on content
+    IconData icon = Icons.notifications_none_rounded;
+    Color iconColor = Colors.grey;
+    Color bgColor = Colors.grey.shade50;
+
+    if (notification.title.toLowerCase().contains("outbid")) {
+      icon = Icons.gavel_rounded;
+      iconColor = Colors.red;
+      bgColor = Colors.red.shade50;
+    } else if (notification.title.toLowerCase().contains("won")) {
+      icon = Icons.emoji_events_rounded;
+      iconColor = const Color(0xFFFF8C1A);
+      bgColor = Colors.orange.shade50;
+    } else if (notification.title.toLowerCase().contains("live")) {
+      icon = Icons.sensors_rounded;
+      iconColor = Colors.redAccent;
+      bgColor = Colors.redAccent.shade100.withOpacity(0.1);
+    }
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
+      decoration: BoxDecoration(
+        color: notification.read ? Colors.white : const Color(0xFFFFF8F0),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: notification.read
+              ? Colors.grey.shade200
+              : const Color(0xFFFF8C1A).withOpacity(0.2),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      color: notification.read ? Colors.white : Colors.orange.shade50,
-      child: ListTile(
-        onTap: () async {
-          await NotificationService().markAsRead(uid, notification.id);
-          if (notification.auctionId != null) {
-            final auction = await AuctionService().getAuction(
-              notification.auctionId!,
-            );
-            if (auction != null && context.mounted) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AuctionPaymentPage(auction: auction),
-                ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            await NotificationService().markAsRead(uid, notification.id);
+            if (notification.auctionId != null) {
+              final auction = await AuctionService().getAuction(
+                notification.auctionId!,
               );
+              if (auction != null && context.mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AuctionPaymentPage(auction: auction),
+                  ),
+                );
+              }
             }
-          }
-        },
-        title: Text(
-          notification.title,
-          style: TextStyle(
-            fontWeight: notification.read ? FontWeight.normal : FontWeight.bold,
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: iconColor, size: 20),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              notification.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: notification.read
+                                    ? FontWeight.w600
+                                    : FontWeight.w800,
+                                fontSize: 15,
+                                color: const Color(0xFF1A1A1A),
+                              ),
+                            ),
+                          ),
+                          if (!notification.read)
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFFF8C1A),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        notification.body,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        DateFormat(
+                          'MMM d, h:mm a',
+                        ).format(notification.createdAt),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade400,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(notification.body),
-            const SizedBox(height: 8),
-            Text(
-              DateFormat('MMM d, h:mm a').format(notification.createdAt),
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
-            ),
-          ],
-        ),
-        trailing: !notification.read
-            ? const Icon(Icons.circle, size: 10, color: Colors.orange)
-            : null,
       ),
     );
   }

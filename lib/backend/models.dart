@@ -210,9 +210,28 @@ class ArtworkOrder {
   });
 
   // ✅ HELPERS for UI
-  DateTime get estimatedDeliveryDate => orderedAt.add(const Duration(days: 4));
+  DateTime get estimatedDeliveryDate => orderedAt.add(const Duration(days: 7));
   DateTime get shippedDate => orderedAt.add(const Duration(days: 2));
-  OrderStatus get effectiveStatus => status;
+  OrderStatus get effectiveStatus {
+    final now = DateTime.now();
+    // Normalize to date-only (midnight) to strictly compare dates
+    final today = DateTime(now.year, now.month, now.day);
+
+    final shipDt = shippedDate;
+    final shipDay = DateTime(shipDt.year, shipDt.month, shipDt.day);
+
+    final delDt = estimatedDeliveryDate;
+    final delDay = DateTime(delDt.year, delDt.month, delDt.day);
+
+    // If explicitly delivered, stay delivered
+    if (status == OrderStatus.delivered) return OrderStatus.delivered;
+
+    // Auto-update logic: If today is ON or AFTER the target date
+    if (!today.isBefore(delDay)) return OrderStatus.delivered;
+    if (!today.isBefore(shipDay)) return OrderStatus.shipped;
+
+    return status;
+  }
 
   // ✅ THIS IS THE MISSING PIECE (CRITICAL)
   ArtworkOrder copyWith({
@@ -281,6 +300,8 @@ class Auction {
   final DateTime createdAt;
   final String createdBy;
 
+  final int? finalPrice; // ✅ New field
+
   Auction({
     required this.id,
     required this.artId,
@@ -300,6 +321,7 @@ class Auction {
     required this.status,
     required this.createdAt,
     required this.createdBy,
+    this.finalPrice,
   });
 
   factory Auction.fromMap(String id, Map<String, dynamic> map) {
@@ -322,6 +344,7 @@ class Auction {
       status: _parseAuctionStatus(map["status"]),
       createdAt: _parseDateTime(map["createdAt"]),
       createdBy: (map["createdBy"] ?? "").toString(),
+      finalPrice: map["finalPrice"] != null ? _toInt(map["finalPrice"]) : null,
     );
   }
 
@@ -344,6 +367,7 @@ class Auction {
       "status": status.name,
       "createdAt": Timestamp.fromDate(createdAt),
       "createdBy": createdBy,
+      "finalPrice": finalPrice,
     };
   }
 }

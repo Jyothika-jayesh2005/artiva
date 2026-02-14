@@ -17,7 +17,7 @@ class _ReviewsPageState extends State<ReviewsPage> {
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: "Artwork Reviews",
-      
+
       body: FutureBuilder<List<ArtworkOrder>>(
         future: backend.getAllOrders(),
         builder: (context, snap) {
@@ -70,9 +70,7 @@ class _ReviewsPageState extends State<ReviewsPage> {
                         // Header row
                         Row(
                           children: [
-                            const CircleAvatar(
-                              child: Icon(Icons.star),
-                            ),
+                            const CircleAvatar(child: Icon(Icons.star)),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
@@ -118,7 +116,9 @@ class _ReviewsPageState extends State<ReviewsPage> {
                             const SizedBox(width: 6),
                             Text(
                               rating == null ? "No rating" : "$rating/5",
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             const Spacer(),
                             if (o.ratedAt != null)
@@ -136,16 +136,17 @@ class _ReviewsPageState extends State<ReviewsPage> {
                           const SizedBox(height: 10),
                           Text(
                             "\"$reviewText\"",
-                            style: const TextStyle(
-                              fontStyle: FontStyle.italic,
-                            ),
+                            style: const TextStyle(fontStyle: FontStyle.italic),
                           ),
                         ],
 
                         const SizedBox(height: 10),
                         Text(
                           "Order: ${o.id}",
-                          style: const TextStyle(fontSize: 12, color: Colors.black45),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black45,
+                          ),
                         ),
                       ],
                     ),

@@ -96,10 +96,47 @@ class AuctionService {
     });
   }
 
-  // Fetch auction details
   Future<Auction?> getAuction(String id) async {
     final doc = await _db.collection("auctions").doc(id).get();
     if (!doc.exists) return null;
     return Auction.fromMap(doc.id, doc.data()!);
+  }
+
+  // Lazy update for ended auctions
+  Future<void> updateEndedAuctions() async {
+    final now = DateTime.now();
+
+    // Query auctions that are supposedly live/scheduled but time passed
+    // Note: complex queries might need composite index.
+    // We'll fetch active ones and filter in memory if list is small,
+    // or use a query. Here we rely on 'live' or 'scheduled' status.
+    final snap = await _db
+        .collection("auctions")
+        .where("status", whereIn: ["live", "scheduled"])
+        .get();
+
+    final batch = _db.batch();
+    bool changed = false;
+
+    for (var doc in snap.docs) {
+      final a = Auction.fromMap(doc.id, doc.data());
+      if (now.isAfter(a.endTime)) {
+        // Needs update
+        int finalPrice = a.startingBid;
+        if (a.highestBidderId != null && a.currentBid > 0) {
+          finalPrice = a.currentBid;
+        }
+
+        batch.update(doc.reference, {
+          "status": "ended",
+          "finalPrice": finalPrice,
+        });
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await batch.commit();
+    }
   }
 }

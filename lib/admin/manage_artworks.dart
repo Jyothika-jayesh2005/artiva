@@ -125,6 +125,7 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                       Expanded(
                         child: TextField(
                           controller: _search,
+                          cursorColor: accent, // ✅ Orange cursor
                           onChanged: (_) => setState(() {}),
                           decoration: const InputDecoration(
                             hintText: "Search by title...",
@@ -388,6 +389,9 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                           ),
                         );
                       },
+                      style: TextButton.styleFrom(
+                        foregroundColor: accent, // ✅ Orange text
+                      ),
                       icon: const Icon(Icons.edit, size: 18),
                       label: const Text("Edit"),
                     ),

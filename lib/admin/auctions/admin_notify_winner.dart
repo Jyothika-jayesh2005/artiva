@@ -20,7 +20,7 @@ class _AdminNotifyWinnerState extends State<AdminNotifyWinner> {
   final NotificationService _notifService = NotificationService();
   final List<String> _templates = [
     "Please complete payment for your rare piece.",
-    "Reminder: Payment pending for auction जीत.",
+    "Reminder: Payment pending for auction.",
     "Congratulations! Please finalize your purchase of 'ART_TITLE'.",
   ];
 

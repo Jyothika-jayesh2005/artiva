@@ -6,6 +6,7 @@ import 'package:artiva/customer/auctions/auction_detail.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:artiva/auth/auth_service.dart';
 import 'package:artiva/customer/auctions/my_wins.dart';
+import 'package:artiva/widgets/auction_list_timer.dart';
 
 class AuctionScreen extends StatefulWidget {
   const AuctionScreen({super.key});
@@ -35,7 +36,7 @@ class _AuctionScreenState extends State<AuctionScreen>
   Widget build(BuildContext context) {
     return CustomerScaffold(
       currentIndex: 2, // Auctions tab is at index 2
-      title: "Art Auctions",
+      title: " Auctions",
       body: Column(
         children: [
           _buildTopBar(),
@@ -95,16 +96,31 @@ class _AuctionScreenState extends State<AuctionScreen>
 
   Widget _buildTopBar() {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: const Text(
-              "Bid on Rare Pieces",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
-            ),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Art Auctions",
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                  height: 1.1,
+                ),
+              ),
+              Text(
+                "Bid on exclusive pieces",
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
           Row(
             children: [
@@ -118,47 +134,74 @@ class _AuctionScreenState extends State<AuctionScreen>
                 builder: (context, snapshot) {
                   final bool hasUnread =
                       snapshot.hasData && snapshot.data!.docs.isNotEmpty;
-                  return IconButton(
-                    icon: Stack(
-                      children: [
-                        const Icon(
-                          Icons.notifications_outlined,
-                          color: Color(0xFFE16417),
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
-                        if (hasUnread)
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: const BoxDecoration(
-                                color: Colors.orange,
-                                shape: BoxShape.circle,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 8,
-                                minHeight: 8,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
-                    onPressed: () =>
-                        Navigator.pushNamed(context, '/notifications'),
+                    child: IconButton(
+                      icon: Stack(
+                        children: [
+                          const Icon(
+                            Icons.notifications_outlined,
+                            color: Colors.black87,
+                          ),
+                          if (hasUnread)
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFFF8C1A),
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 8,
+                                  minHeight: 8,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/notifications'),
+                    ),
                   );
                 },
               ),
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MyWinsScreen()),
-                  );
-                },
-                icon: const Icon(Icons.emoji_events, color: Color(0xFFE16417)),
-                label: const Text(
-                  "My Wins",
-                  style: TextStyle(color: Color(0xFFE16417)),
+              const SizedBox(width: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MyWinsScreen()),
+                    );
+                  },
+                  tooltip: "My Wins",
+                  icon: const Icon(
+                    Icons.emoji_events_outlined,
+                    color: Color(0xFFFF8C1A),
+                  ),
                 ),
               ),
             ],
@@ -170,12 +213,29 @@ class _AuctionScreenState extends State<AuctionScreen>
 
   Widget _buildAuctionList(List<Auction> auctions) {
     if (auctions.isEmpty) {
-      return const Center(child: Text("No auctions available"));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.gavel_outlined, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            const Text(
+              "No auctions found",
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
+    return ListView.separated(
+      padding: const EdgeInsets.all(20),
       itemCount: auctions.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 24),
       itemBuilder: (context, index) {
         final auction = auctions[index];
         return _buildAuctionCard(auction);
@@ -202,109 +262,242 @@ class _AuctionScreenState extends State<AuctionScreen>
         );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Image Section
             Stack(
               children: [
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
+                    top: Radius.circular(24),
                   ),
-                  child: Image.network(
-                    auction.artImageUrl,
-                    height: 180,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isLive ? Colors.red : Colors.grey,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      isLive ? "LIVE" : "ENDED",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                  child: AspectRatio(
+                    aspectRatio: 4 / 3,
+                    child: Image.network(
+                      auction.artImageUrl,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: Colors.grey.shade100,
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFFFF8C1A),
+                            ),
+                          ),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey.shade200,
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
                   ),
                 ),
+                // Gradient Overlay
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.3),
+                        ],
+                        stops: const [0.6, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+                // Status Badge
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: isLive
+                          ? const LinearGradient(
+                              colors: [Color(0xFFFF8C1A), Colors.deepOrange],
+                            )
+                          : LinearGradient(
+                              colors: [
+                                Colors.grey.shade700,
+                                Colors.grey.shade900,
+                              ],
+                            ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: isLive
+                              ? Colors.orange.withOpacity(0.4)
+                              : Colors.black.withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isLive) ...[
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(
+                          isLive
+                              ? "LIVE NOW"
+                              : (auction.status == AuctionStatus.sold
+                                    ? "SOLD"
+                                    : "ENDED"),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Timer Overlay (if live)
+                if (isLive)
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
+                    right: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.timer_outlined,
+                            color: Color(0xFFFF8C1A),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            "Ends in:",
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const Spacer(),
+                          // You might need to adjust AuctionListTimer to fit this style
+                          // or wrap it to use custom text style
+                          AuctionListTimer(
+                            endTime: auction.endTime,
+                            color: Colors.white,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
+            // Info Section
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     auction.artTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            "Current Bid",
-                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          Text(
+                            isLive ? "Current Bid" : "Winning Bid",
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.5,
+                            ),
                           ),
+                          const SizedBox(height: 4),
                           Text(
                             "₹${auction.currentBid}",
                             style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFE16417),
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFFFF8C1A),
+                              letterSpacing: -0.5,
                             ),
                           ),
                         ],
                       ),
-                      if (isLive)
-                        _buildCountdown(auction.endTime)
-                      else if (auction.status == AuctionStatus.sold)
-                        const Text(
-                          "SOLD",
-                          style: TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      else
-                        const Text(
-                          "CLOSED",
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isLive
+                              ? const Color(0xFFFF8C1A).withOpacity(0.1)
+                              : Colors.grey.shade100,
+                          shape: BoxShape.circle,
                         ),
+                        child: Icon(
+                          Icons.arrow_forward_rounded,
+                          color: isLive
+                              ? const Color(0xFFFF8C1A)
+                              : Colors.grey.shade400,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -313,31 +506,6 @@ class _AuctionScreenState extends State<AuctionScreen>
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildCountdown(DateTime endTime) {
-    final now = DateTime.now();
-    final diff = endTime.difference(now);
-
-    if (diff.isNegative) return const Text("Ending soon...");
-
-    String hours = diff.inHours.toString().padLeft(2, '0');
-    String minutes = (diff.inMinutes % 60).toString().padLeft(2, '0');
-    String seconds = (diff.inSeconds % 60).toString().padLeft(2, '0');
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        const Text(
-          "Ends in",
-          style: TextStyle(color: Colors.grey, fontSize: 12),
-        ),
-        Text(
-          "$hours:$minutes:$seconds",
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ],
     );
   }
 }

@@ -95,14 +95,6 @@ class AuctionOverviewBody extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          "Current Bid: ₹${auction.currentBid}",
-                          style: const TextStyle(
-                            color: accent,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
                         Builder(
                           builder: (context) {
                             final now = DateTime.now();
@@ -117,19 +109,46 @@ class AuctionOverviewBody extends StatelessWidget {
                                 displayStatus = AuctionStatus.live;
                             }
 
-                            return Text(
-                              "Status: ${displayStatus.name.toUpperCase()}",
-                              style: TextStyle(
-                                color: _getStatusColor(displayStatus),
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            final bool isEnded =
+                                displayStatus == AuctionStatus.ended ||
+                                displayStatus == AuctionStatus.sold;
+
+                            final int displayPrice = isEnded
+                                ? (auction.finalPrice ??
+                                      (auction.highestBidderId != null
+                                          ? auction.currentBid
+                                          : auction.startingBid))
+                                : auction.currentBid;
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isEnded
+                                      ? "Final: ₹$displayPrice"
+                                      : "Current: ₹$displayPrice",
+                                  style: const TextStyle(
+                                    color: accent,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "Status: ${displayStatus.name.toUpperCase()}",
+                                  style: TextStyle(
+                                    color: _getStatusColor(displayStatus),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             );
                           },
                         ),
                       ],
                     ),
                   ),
+
                   const Icon(
                     Icons.arrow_forward_ios,
                     size: 16,

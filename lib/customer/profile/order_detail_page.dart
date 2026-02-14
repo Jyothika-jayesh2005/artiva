@@ -66,12 +66,8 @@ class OrderDetailPage extends StatelessWidget {
     // But the prompt is to "add this page".
     // I will write the file with `estimatedDeliveryDate` logic implemented as an extension or property if possible, logic: `orderedAt.add(Duration(days: 7))`
 
-    final deliveryDate = order.orderedAt.add(
-      const Duration(days: 7),
-    ); // Mock logic
-    final shippedDate = order.orderedAt.add(
-      const Duration(days: 2),
-    ); // Mock logic
+    final deliveryDate = order.estimatedDeliveryDate;
+    final shippedDate = order.shippedDate;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -81,7 +77,7 @@ class OrderDetailPage extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFFF1DC),
         elevation: 0,
         foregroundColor: Colors.black,
       ),

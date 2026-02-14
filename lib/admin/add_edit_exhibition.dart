@@ -133,14 +133,34 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                       width: double.infinity,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.grey),
-                        color: Colors.white,
+                        border: Border.all(
+                          color: const Color(0xFFFF8C1A).withOpacity(0.5),
+                          width: 1,
+                        ),
+                        color: const Color(0xFFFF8C1A).withOpacity(0.05),
                       ),
                       child:
                           (_localImagePath == null &&
                               (_imageUrl == null || _imageUrl!.isEmpty))
-                          ? const Center(
-                              child: Text("Tap to upload exhibition image"),
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.add_photo_alternate,
+                                  size: 50,
+                                  color: Color(0xFFFF8C1A),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Tap to upload image",
+                                  style: TextStyle(
+                                    color: const Color(
+                                      0xFFFF8C1A,
+                                    ).withOpacity(0.8),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             )
                           : ClipRRect(
                               borderRadius: BorderRadius.circular(14),
@@ -211,25 +231,48 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
                   ListTile(
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.shade300),
                     ),
                     tileColor: Colors.white,
-                    leading: const Icon(Icons.calendar_month),
+                    leading: const Icon(
+                      Icons.calendar_month,
+                      color: Color(0xFFFF8C1A),
+                    ),
                     title: Text(
                       _selectedDateTime == null
                           ? "Select Date & Time"
                           : _formatDateTime(_selectedDateTime!),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey,
+                    ),
                     onTap: _saving ? null : _pickDateTime,
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
-                  ElevatedButton.icon(
-                    onPressed: _saving ? null : _save,
-                    icon: const Icon(Icons.save),
-                    label: Text(
-                      isEdit ? "Update Exhibition" : "Add Exhibition",
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF8C1A),
+                        foregroundColor: Colors.white,
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _saving ? null : _save,
+                      icon: const Icon(Icons.save),
+                      label: Text(
+                        isEdit ? "Update Exhibition" : "Add Exhibition",
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -308,10 +351,25 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon),
+        prefixIcon: Icon(icon, color: Colors.grey.shade600),
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFFF8C1A), width: 2),
+        ),
       ),
     );
   }
@@ -329,12 +387,55 @@ class _AddEditExhibitionPageState extends State<AddEditExhibitionPage> {
       firstDate: safeFirstDate,
       lastDate: DateTime(now.year + 5), // extended for safety
       initialDate: _selectedDateTime ?? now,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: const Color(0xFFFF8C1A),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFFF8C1A),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (date == null) return;
 
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_selectedDateTime ?? now),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: const Color(0xFFFF8C1A), // header background color
+              onPrimary: Colors.white, // header text color
+              onSurface: Colors.black, // body text color
+              secondary: const Color(
+                0xFFFF8C1A,
+              ).withOpacity(0.2), // clock dial selection
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFFF8C1A), // button text color
+              ),
+            ),
+            timePickerTheme: TimePickerThemeData(
+              dialHandColor: const Color(0xFFFF8C1A),
+              dialTextColor: Colors.black,
+              dayPeriodColor: const Color(0xFFFF8C1A).withOpacity(0.12),
+              dayPeriodTextColor: const Color(0xFFFF8C1A),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (time == null) return;
 

@@ -16,8 +16,6 @@ class ExhibitionScreen extends StatefulWidget {
 class _ExhibitionScreenState extends State<ExhibitionScreen> {
   final BackendService backend = BackendService();
 
-  static const Color accent = Color(0xFFE16417);
-
   Future<List<Exhibition>> _load() async {
     return backend.getExhibitions(); // active only
   }
@@ -44,14 +42,31 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
 
           final list = snap.data ?? [];
           if (list.isEmpty) {
-            return const Center(child: Text("No exhibitions yet"));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.event_busy, size: 64, color: Colors.grey.shade300),
+                  const SizedBox(height: 16),
+                  Text(
+                    "No exhibitions found",
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
           }
 
           return RefreshIndicator(
             onRefresh: () async => setState(() {}),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+            child: ListView.separated(
+              padding: const EdgeInsets.all(20),
               itemCount: list.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 24),
               itemBuilder: (_, i) => _exhibitionCard(list[i]),
             ),
           );
@@ -63,7 +78,6 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
   Widget _exhibitionCard(Exhibition e) {
     final remaining = e.remainingSeats;
     final soldOut = remaining <= 0;
-
     final totalSeats = e.totalSeats;
 
     return GestureDetector(
@@ -77,101 +91,233 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
         if (mounted) setState(() {}); // refresh after booking
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // -------- IMAGE TOP --------
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
-              ),
-              child: Stack(
-                children: [
-                  SizedBox(
-                    height: 180,
-                    width: double.infinity,
+            // Image Section
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                  child: AspectRatio(
+                    aspectRatio: 4 / 3,
                     child: _imageWide(e.imageUrl),
                   ),
-
-                  // Status pill
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: _statusPill(
-                      text: soldOut ? "Sold out" : "Active",
-                      color: soldOut ? Colors.red : Colors.green,
+                ),
+                // Gradient Overlay
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.4),
+                        ],
+                        stops: const [0.6, 1.0],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                ),
+                // Status Badge
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: soldOut
+                          ? Colors.red.withOpacity(0.9)
+                          : Colors.green.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          soldOut ? "SOLD OUT" : "OPEN NOW",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Price Tag (Floating)
+                Positioned(
+                  bottom: 16,
+                  right: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      "₹${e.pricePerSeat}",
+                      style: const TextStyle(
+                        color: Color(0xFF1A1A1A),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
 
-            // -------- DETAILS --------
+            // Details Section
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title
                   Text(
                     e.title,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF1F2937),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                      color: Color(0xFF1A1A1A),
                     ),
                   ),
-                  const SizedBox(height: 10),
-
-                  // Date row
-                  _metaRow(
-                    icon: Icons.calendar_month,
-                    text: _formatDateTime(e.dateTime),
-                  ),
-                  const SizedBox(height: 6),
-
-                  // Venue row
-                  _metaRow(icon: Icons.location_on, text: e.venue),
-
                   const SizedBox(height: 12),
-                  Divider(color: Colors.black.withOpacity(0.08), height: 1),
-                  const SizedBox(height: 10),
-
-                  // Bottom stats
                   Row(
                     children: [
-                      Expanded(
-                        child: _stat(
-                          icon: Icons.event_seat,
-                          label: soldOut
-                              ? "Seats: 0 / $totalSeats"
-                              : "Seats: $remaining / $totalSeats",
-                          valueColor: soldOut ? Colors.red : Colors.green,
+                      Icon(
+                        Icons.calendar_month,
+                        size: 16,
+                        color: Colors.grey.shade600,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _formatDateTime(e.dateTime),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: Colors.grey.shade600,
+                      ),
+                      const SizedBox(width: 6),
                       Expanded(
-                        child: _stat(
-                          icon: Icons.payments,
-                          label: "₹${e.pricePerSeat} / seat",
-                          valueColor: accent,
+                        child: Text(
+                          e.venue,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                      const Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Progress Bar for Seats
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Seats Available",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            "$remaining / $totalSeats",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: soldOut
+                                  ? Colors.red
+                                  : const Color(0xFFE16417),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: totalSeats > 0
+                              ? (totalSeats - remaining) / totalSeats
+                              : 0,
+                          backgroundColor: Colors.grey.shade100,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            soldOut ? Colors.red : const Color(0xFFE16417),
+                          ),
+                          minHeight: 6,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -183,91 +329,24 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
     );
   }
 
-  Widget _statusPill({required String text, required Color color}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.92),
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w800,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget _metaRow({required IconData icon, required String text}) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: accent),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 13.5,
-              color: Color(0xFF4B5563),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _stat({
-    required IconData icon,
-    required String label,
-    required Color valueColor,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: valueColor),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12.8,
-              fontWeight: FontWeight.w800,
-              color: valueColor == accent
-                  ? const Color(0xFF1F2937)
-                  : valueColor,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _imageWide(String urlOrAsset) {
+    // ... existing implementation ...
     final p = urlOrAsset.trim();
 
     if (p.isEmpty) {
-      return _imgErrWide();
+      return Container(
+        color: Colors.grey.shade200,
+        child: const Center(
+          child: Icon(Icons.image_not_supported_outlined, color: Colors.grey),
+        ),
+      );
     }
 
     if (p.startsWith("assets/")) {
       return Image.asset(
         p,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _imgErrWide(),
+        errorBuilder: (_, __, ___) => Container(color: Colors.grey.shade200),
       );
     }
 
@@ -277,32 +356,25 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
         fit: BoxFit.cover,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
-          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+          return Container(
+            color: Colors.grey.shade100,
+            child: const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Color(0xFFE16417),
+              ),
+            ),
+          );
         },
-        errorBuilder: (_, __, ___) => _imgErrWide(),
+        errorBuilder: (_, __, ___) => Container(color: Colors.grey.shade200),
       );
     }
 
-    return _imgErrWide(text: "Invalid image");
-  }
-
-  Widget _imgErrWide({String text = "No image"}) {
-    return Container(
-      color: Colors.grey.shade200,
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.image_not_supported),
-          const SizedBox(height: 6),
-          Text(text, style: const TextStyle(fontSize: 12)),
-        ],
-      ),
-    );
+    return Container(color: Colors.grey.shade200);
   }
 
   String _formatDateTime(DateTime dt) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}-${two(dt.month)}-${dt.year}  ${two(dt.hour)}:${two(dt.minute)}";
+    // ... existing implementation ...
+    return "${dt.day}/${dt.month}/${dt.year} • ${dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour)}:${dt.minute.toString().padLeft(2, '0')} ${dt.hour >= 12 ? 'PM' : 'AM'}";
   }
 }

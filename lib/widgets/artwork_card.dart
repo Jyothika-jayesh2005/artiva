@@ -7,16 +7,13 @@ class ArtworkCard extends StatelessWidget {
 
   const ArtworkCard({super.key, required this.artwork, this.onTap});
 
-  static const _titleColor = Color(0xFF1F1F1F);
-  static const _categoryColor = Color(0xFF7A7A7A);
-  static const _priceColor = Color(0xFFE16417);
-
   @override
   Widget build(BuildContext context) {
     final String title = artwork["title"]?.toString() ?? "Artwork";
     final String category = artwork["category"]?.toString() ?? "";
 
-    final int price = int.tryParse(
+    final int price =
+        int.tryParse(
           (artwork["price"] ?? "0")
               .toString()
               .replaceAll("₹", "")
@@ -25,7 +22,7 @@ class ArtworkCard extends StatelessWidget {
         ) ??
         0;
 
-    // ✅ Rating values from artwork map (Firestore fields)
+    // Rating values
     final double avgRating = (artwork["avgRating"] is num)
         ? (artwork["avgRating"] as num).toDouble()
         : double.tryParse((artwork["avgRating"] ?? "").toString()) ?? 0.0;
@@ -34,131 +31,140 @@ class ArtworkCard extends StatelessWidget {
         ? (artwork["ratingCount"] as num).toInt()
         : int.tryParse((artwork["ratingCount"] ?? "").toString()) ?? 0;
 
-    // ✅ Get image from any key (Cloudinary uses imageUrl)
-    final String image = (artwork["imageUrl"] ??
-            artwork["image"] ??
-            artwork["imagePath"] ??
-            "")
-        .toString()
-        .trim();
+    // Image
+    final String image =
+        (artwork["imageUrl"] ?? artwork["image"] ?? artwork["imagePath"] ?? "")
+            .toString()
+            .trim();
 
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: LayoutBuilder(
-          builder: (context, c) {
-            const double textAreaH = 78.0;
-
-            final double maxH = c.maxHeight.isFinite ? c.maxHeight : 260.0;
-            final double imageH = (maxH - textAreaH).clamp(120.0, 220.0);
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  height: imageH,
-                  width: double.infinity,
-                  child: _image(image),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image Section (Vertical Aspect Ratio)
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(18),
                 ),
-                SizedBox(
-                  height: textAreaH,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            color: _titleColor,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _image(image),
+                    // Optional: Subtle gradient at bottom of image for depth
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 60,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.05),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          category,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w500,
-                            color: _categoryColor,
-                          ),
-                        ),
-                        const Spacer(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                "₹$price",
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: _priceColor,
-                                ),
-                              ),
-                            ),
-
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.star_rounded,
-                                  size: 16,
-                                  color: Color(0xFFFFB300),
-                                ),
-                                const SizedBox(width: 2),
-                                Text(
-                                  ratingCount == 0
-                                      ? "—"
-                                      : avgRating.toStringAsFixed(1),
-                                  style: const TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: _titleColor,
-                                  ),
-                                ),
-                                if (ratingCount > 0) ...[
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    "($ratingCount)",
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w500,
-                                      color: _categoryColor,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
+            // Details Section
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Category
+                  Text(
+                    category.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade500,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                  const SizedBox(height: 4),
+
+                  // Title
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Price & Rating Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "₹$price",
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFE16417),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 16,
+                            color: Color(0xFFFFB300),
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            avgRating.toStringAsFixed(1),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                          if (ratingCount > 0)
+                            Text(
+                              " ($ratingCount)",
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -167,43 +173,50 @@ class ArtworkCard extends StatelessWidget {
   Widget _image(String img) {
     if (img.isEmpty) return _fallback();
 
-    // ✅ Cloudinary / network url
     if (img.startsWith("http")) {
       return Image.network(
         img,
         fit: BoxFit.cover,
-        alignment: Alignment.center,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
-          return const Center(child: CircularProgressIndicator());
+          return Container(
+            color: Colors.grey.shade50,
+            child: const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
         },
         errorBuilder: (_, __, ___) => _fallback(),
       );
     }
 
-    // ✅ Assets
     if (img.startsWith("assets/")) {
       return Image.asset(
         img,
         fit: BoxFit.cover,
-        alignment: Alignment.center,
         errorBuilder: (_, __, ___) => _fallback(),
       );
     }
 
-    // ✅ Local file (only if you still have old local paths)
     return Image.file(
       File(img),
       fit: BoxFit.cover,
-      alignment: Alignment.center,
       errorBuilder: (_, __, ___) => _fallback(),
     );
   }
 
   Widget _fallback() {
     return Container(
-      color: Colors.grey.shade200,
-      child: const Center(child: Icon(Icons.image, color: Colors.black45)),
+      color: Colors.grey.shade100,
+      child: Icon(
+        Icons.image_not_supported_outlined,
+        color: Colors.grey.shade300,
+        size: 32,
+      ),
     );
   }
 }

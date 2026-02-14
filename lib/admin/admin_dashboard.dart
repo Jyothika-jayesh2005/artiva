@@ -312,7 +312,7 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome> {
     final bool isArtwork = widget.mode == AdminMode.artwork;
 
     return AdminScaffold(
-      title: "Booking Overview",
+      title: "Admin Dashboard",
       showBack: false,
       actions: [
         StreamBuilder<QuerySnapshot>(

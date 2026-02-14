@@ -5,6 +5,7 @@ import 'package:artiva/backend/models.dart';
 import 'package:artiva/services/local_notification_service.dart';
 import 'package:artiva/main.dart'; // for scaffoldMessengerKey and navigatorKey
 import 'package:artiva/customer/auctions/my_wins.dart';
+import 'package:artiva/backend/auction_service.dart';
 
 class NotificationService {
   static final NotificationService instance = NotificationService._internal();
@@ -133,7 +134,7 @@ class NotificationService {
         .orderBy("createdAt", descending: true)
         .limit(10)
         .snapshots()
-        .listen((snap) {
+        .listen((snap) async {
           final now = DateTime.now();
           for (var change in snap.docChanges) {
             if (change.type == DocumentChangeType.added) {
@@ -146,14 +147,31 @@ class NotificationService {
                 final isRead = data["read"] == true;
                 final createdAt = (data["createdAt"] as Timestamp?)?.toDate();
 
-                // On first load, only alert for recent unread messages (< 15 mins)
-                // On subsequent updates, always alert (isFirstLoad is false)
-                bool shouldAlert = !isRead;
-                if (isFirstLoad && createdAt != null) {
-                  shouldAlert = now.difference(createdAt).inMinutes < 15;
+                // Check if auction is already sold (paid)
+                bool isSold = false;
+                if ((type == "win" || type == "reminder") &&
+                    auctionId != null) {
+                  try {
+                    final auction = await AuctionService().getAuction(
+                      auctionId,
+                    );
+                    if (auction?.status == AuctionStatus.sold) {
+                      isSold = true;
+                    }
+                  } catch (e) {
+                    debugPrint("Error checking auction status: $e");
+                  }
                 }
 
-                if (shouldAlert && !isRead) {
+                // On first load, only alert for recent unread messages (< 15 mins)
+                // On subsequent updates, always alert (isFirstLoad is false)
+                bool shouldAlert = !isRead && !isSold;
+                if (isFirstLoad && createdAt != null) {
+                  shouldAlert =
+                      shouldAlert && now.difference(createdAt).inMinutes < 15;
+                }
+
+                if (shouldAlert) {
                   LocalNotificationService.showNotification(
                     id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
                     title: title,

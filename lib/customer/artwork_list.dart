@@ -22,7 +22,7 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
   late final TextEditingController _searchCtrl;
   late String _selectedCategory;
 
-  final BackendService backend = BackendService(); // ✅ ADD
+  final BackendService backend = BackendService();
 
   @override
   void initState() {
@@ -44,8 +44,9 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
       final title = (art["title"] ?? "").toString().toLowerCase();
       final cat = (art["category"] ?? "").toString();
 
-      final categoryOk =
-          (_selectedCategory == "All") ? true : (cat == _selectedCategory);
+      final categoryOk = (_selectedCategory == "All")
+          ? true
+          : (cat == _selectedCategory);
 
       final searchOk = q.isEmpty ? true : title.contains(q);
 
@@ -58,12 +59,7 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
         .toString()
         .trim();
 
-    return {
-      ...art,
-      "image": image,
-      "imagePath": image,
-      "imageUrl": image,
-    };
+    return {...art, "image": image, "imagePath": image, "imageUrl": image};
   }
 
   @override
@@ -73,61 +69,104 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
       currentIndex: 1,
       body: Column(
         children: [
+          // Search Bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 46,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: TextField(
-                      controller: _searchCtrl,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        hintText: "Search artworks",
-                        border: InputBorder.none,
-                        icon: Icon(Icons.search),
-                      ),
-                    ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Container(
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(25),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: "Search artworks...",
+                  hintStyle: TextStyle(
+                    color: Colors.grey.shade400,
+                    fontSize: 15,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: Colors.grey.shade400,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
                   ),
                 ),
-                const SizedBox(width: 10),
-                DropdownButtonHideUnderline(
-                  child: Container(
-                    height: 46,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: DropdownButton<String>(
-                      value: _selectedCategory,
-                      items: const [
-                        "All",
-                        "Painting",
-                        "Digital",
-                        "Sculpture",
-                        "Abstract",
-                        "Photography",
-                        "Sketch",
-                      ].map((c) {
-                        return DropdownMenuItem(value: c, child: Text(c));
-                      }).toList(),
-                      onChanged: (v) {
-                        if (v == null) return;
-                        setState(() => _selectedCategory = v);
-                      },
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
+
+          // Filters (Chips)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              children:
+                  [
+                    "All",
+                    "Painting",
+                    "Digital",
+                    "Sculpture",
+                    "Abstract",
+                    "Photography",
+                    "Sketch",
+                  ].map((category) {
+                    final isSelected = _selectedCategory == category;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: FilterChip(
+                        label: Text(category),
+                        labelStyle: TextStyle(
+                          color: isSelected
+                              ? Colors.white
+                              : const Color(0xFF4B5563),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                        selected: isSelected,
+                        onSelected: (bool selected) {
+                          setState(() {
+                            _selectedCategory = category;
+                          });
+                        },
+                        backgroundColor: Colors.white,
+                        selectedColor: const Color(0xFFE16417),
+                        checkmarkColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: isSelected
+                                ? Colors.transparent
+                                : Colors.grey.shade200,
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 8,
+                        ),
+                        elevation: 0,
+                        pressElevation: 0,
+                      ),
+                    );
+                  }).toList(),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Grid List
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: backend.watchArtworks(),
@@ -136,48 +175,70 @@ class _ArtworkListPageState extends State<ArtworkListPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snap.hasError) {
-                  return Center(child: Text("Error: ${snap.error}"));
+                  return Center(
+                    child: Text(
+                      "Something went wrong",
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  );
                 }
 
                 final all = (snap.data ?? []).map(_normalizeArtwork).toList();
                 final filtered = _applyFilter(all);
 
                 if (filtered.isEmpty) {
-                  return const Center(child: Text("No artworks found"));
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: 64,
+                          color: Colors.grey.shade300,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          "No artworks found",
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
                 }
 
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: GridView.builder(
-                    itemCount: filtered.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 16,
-                      crossAxisSpacing: 16,
-                      childAspectRatio: 0.62,
-                    ),
-                    itemBuilder: (context, index) {
-                      final art = filtered[index];
-
-                      return ArtworkCard(
-                        artwork: art,
-                        onTap: () {
-                          final detailArt = art.map(
-                            (k, v) => MapEntry(k, (v ?? "").toString()),
-                          );
-
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  ArtworkDetailsPage(artwork: detailArt),
-                            ),
-                          );
-                        },
-                      );
-                    },
+                return GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
+                  itemCount: filtered.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.72, // Tuned for vertical cards
                   ),
+                  itemBuilder: (context, index) {
+                    final art = filtered[index];
+
+                    return ArtworkCard(
+                      artwork: art,
+                      onTap: () {
+                        final detailArt = art.map(
+                          (k, v) => MapEntry(k, (v ?? "").toString()),
+                        );
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ArtworkDetailsPage(artwork: detailArt),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 );
               },
             ),

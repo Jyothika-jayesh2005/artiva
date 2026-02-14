@@ -384,16 +384,62 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
   ) {
     return InkWell(
       onTap: () async {
+        final now = DateTime.now();
+        final firstDate = now.subtract(const Duration(days: 365));
+        final lastDate = now.add(const Duration(days: 365));
+
         final date = await showDatePicker(
           context: context,
           initialDate: value,
-          firstDate: DateTime.now().subtract(const Duration(days: 365)),
-          lastDate: DateTime.now().add(const Duration(days: 365)),
+          firstDate: firstDate,
+          lastDate: lastDate,
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: ColorScheme.light(
+                  primary: const Color(0xFFFF8C1A),
+                  onPrimary: Colors.white,
+                  onSurface: Colors.black,
+                  secondary: const Color(0xFFFF8C1A).withOpacity(0.2),
+                ),
+                textButtonTheme: TextButtonThemeData(
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFFFF8C1A),
+                  ),
+                ),
+              ),
+              child: child!,
+            );
+          },
         );
         if (date != null && mounted) {
           final time = await showTimePicker(
             context: context,
             initialTime: TimeOfDay.fromDateTime(value),
+            builder: (context, child) {
+              return Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: ColorScheme.light(
+                    primary: const Color(0xFFFF8C1A),
+                    onPrimary: Colors.white,
+                    onSurface: Colors.black,
+                    secondary: const Color(0xFFFF8C1A).withOpacity(0.2),
+                  ),
+                  textButtonTheme: TextButtonThemeData(
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFFF8C1A),
+                    ),
+                  ),
+                  timePickerTheme: TimePickerThemeData(
+                    dialHandColor: const Color(0xFFFF8C1A),
+                    dialTextColor: Colors.black,
+                    dayPeriodColor: const Color(0xFFFF8C1A).withOpacity(0.12),
+                    dayPeriodTextColor: const Color(0xFFFF8C1A),
+                  ),
+                ),
+                child: child!,
+              );
+            },
           );
           if (time != null) {
             onSelect(

@@ -22,6 +22,9 @@ class CustomerScaffold extends StatelessWidget {
   // ✅ NEW: Force showing back button even if currentIndex != -1
   final bool showBackButton;
 
+  // ✅ NEW: Option to hide the header entirely (for custom profile screens etc)
+  final bool showHeader;
+
   const CustomerScaffold({
     super.key,
     required this.body,
@@ -31,6 +34,7 @@ class CustomerScaffold extends StatelessWidget {
     this.headerBottom,
     this.bottomNavigationBar,
     this.showBackButton = false,
+    this.showHeader = true,
   });
 
   final Widget? bottomNavigationBar;
@@ -91,60 +95,61 @@ class CustomerScaffold extends StatelessWidget {
         child: Column(
           children: [
             // ================= HEADER =================
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 18, 16, 18),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFFE16417), Color(0xFF80431F)],
-                ),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(32),
-                  bottomRight: Radius.circular(32),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      // Back button only for inner pages OR if forced
-                      if (currentIndex == -1 || showBackButton)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: Colors.white,
-                          ),
-                          onPressed: onBack ?? () => _defaultBack(context),
-                        ),
-
-                      // ✅ title constrained (prevents overflow)
-                      Expanded(
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-
-                      // Profile icon only on main tabs
-                      if (currentIndex != -1) _ProfileIconWithBadge(),
-                    ],
+            if (showHeader)
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 18, 16, 18),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFFE16417), Color(0xFF80431F)],
                   ),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(32),
+                    bottomRight: Radius.circular(32),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        // Back button only for inner pages OR if forced
+                        if (currentIndex == -1 || showBackButton)
+                          IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                            ),
+                            onPressed: onBack ?? () => _defaultBack(context),
+                          ),
 
-                  // ✅ NEW: extra header content (search/categories/etc)
-                  if (headerBottom != null) ...[
-                    const SizedBox(height: 12),
-                    headerBottom!,
+                        // ✅ title constrained (prevents overflow)
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+
+                        // Profile icon only on main tabs
+                        if (currentIndex != -1) _ProfileIconWithBadge(),
+                      ],
+                    ),
+
+                    // ✅ NEW: extra header content (search/categories/etc)
+                    if (headerBottom != null) ...[
+                      const SizedBox(height: 12),
+                      headerBottom!,
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
 
             // ================= BODY =================
             Expanded(child: body),

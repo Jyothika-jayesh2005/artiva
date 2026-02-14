@@ -22,7 +22,7 @@ class _ExhibitionBookingsPageState extends State<ExhibitionBookingsPage> {
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: "Exhibition Bookings",
-      
+
       body: FutureBuilder<List<ExhibitionBooking>>(
         future: backend.getAllExhibitionBookings(),
         builder: (context, snap) {
@@ -53,26 +53,44 @@ class _ExhibitionBookingsPageState extends State<ExhibitionBookingsPage> {
                 final b = bookings[i];
 
                 return Card(
+                  color: Colors.white,
+                  surfaceTintColor: Colors.white, // Removes M3 purple tint
+                  elevation: 2,
                   margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(color: Colors.grey.shade200),
                   ),
                   child: ListTile(
-                    leading: const CircleAvatar(
-                      child: Icon(Icons.confirmation_number),
+                    contentPadding: const EdgeInsets.all(12),
+                    leading: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF8C1A).withOpacity(0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.confirmation_number,
+                        color: Color(0xFFFF8C1A),
+                      ),
                     ),
                     title: Text(
                       b.exhibitionTitle,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text(
-                      "Customer: ${b.customerName}\n"
-                      "Email: ${b.customerEmail}\n"
-                      "Exhibition ID: ${b.exhibitionId}\n"
-                      "Venue: ${b.venue}\n"
-                      "Seats: ${b.seats}\n"
-                      "Price/Seat: ₹${b.pricePerSeat}  •  Total: ₹${b.totalAmount}\n"
-                      "Booked: ${_formatDateTime(b.bookedAt)}",
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        "Customer: ${b.customerName}\n"
+                        "Email: ${b.customerEmail}\n"
+                        "Exhibition ID: ${b.exhibitionId}\n"
+                        "Venue: ${b.venue}\n"
+                        "Seats: ${b.seats}\n"
+                        "Price/Seat: ₹${b.pricePerSeat}  •  Total: ₹${b.totalAmount}\n"
+                        "Booked: ${_formatDateTime(b.bookedAt)}",
+                        style: const TextStyle(height: 1.5),
+                      ),
                     ),
                   ),
                 );
