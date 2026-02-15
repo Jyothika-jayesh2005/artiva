@@ -6,6 +6,7 @@ import 'package:artiva/backend/auction_service.dart';
 import 'package:artiva/auth/auth_service.dart';
 import 'package:artiva/customer/auctions/my_wins.dart';
 import 'package:artiva/widgets/auction_list_timer.dart';
+import 'package:artiva/customer/profile/profile_settings.dart';
 
 class AuctionDetailScreen extends StatefulWidget {
   final Auction auction;
@@ -48,6 +49,38 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please login to place a bid")),
+      );
+      return;
+    }
+
+    // ✅ Enforce Phone Number
+    if (user.phone.isEmpty || user.phone.length < 10) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Phone Number Required"),
+          content: const Text(
+            "To place a bid, we need a valid phone number for verification. Please update your profile.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ProfileSettingsPage(),
+                  ),
+                );
+              },
+              child: const Text("Update Profile"),
+            ),
+          ],
+        ),
       );
       return;
     }

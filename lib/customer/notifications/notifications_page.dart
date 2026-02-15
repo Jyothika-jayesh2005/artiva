@@ -32,26 +32,39 @@ class NotificationsPage extends StatelessWidget {
       ),
       body: StreamBuilder<List<AppNotification>>(
         stream: NotificationService().getUserNotifications(uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final notifications = snapshot.data ?? [];
-          if (notifications.isEmpty) {
-            return const Center(
-              child: Text(
-                "No notifications yet",
-                style: TextStyle(color: Colors.grey),
-              ),
-            );
-          }
+        builder: (context, userSnap) {
+          return StreamBuilder<List<AppNotification>>(
+            stream: NotificationService().getGlobalNotifications(),
+            builder: (context, globalSnap) {
+              if (userSnap.connectionState == ConnectionState.waiting &&
+                  globalSnap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          return ListView.builder(
-            itemCount: notifications.length,
-            padding: const EdgeInsets.all(16),
-            itemBuilder: (context, index) {
-              final n = notifications[index];
-              return _NotificationCard(notification: n, uid: uid);
+              final userNotifs = userSnap.data ?? [];
+              final globalNotifs = globalSnap.data ?? [];
+
+              // Merge and sort by date descending
+              final allNotifications = [...userNotifs, ...globalNotifs]
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+              if (allNotifications.isEmpty) {
+                return const Center(
+                  child: Text(
+                    "No notifications yet",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                itemCount: allNotifications.length,
+                padding: const EdgeInsets.all(16),
+                itemBuilder: (context, index) {
+                  final n = allNotifications[index];
+                  return _NotificationCard(notification: n, uid: uid);
+                },
+              );
             },
           );
         },

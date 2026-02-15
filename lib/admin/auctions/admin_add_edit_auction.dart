@@ -10,7 +10,9 @@ import 'package:artiva/services/cloudinary_service.dart';
 
 class AdminAddEditAuction extends StatefulWidget {
   final Auction? auction;
-  const AdminAddEditAuction({super.key, this.auction});
+  final bool isRelist; // New parameter
+
+  const AdminAddEditAuction({super.key, this.auction, this.isRelist = false});
 
   @override
   State<AdminAddEditAuction> createState() => _AdminAddEditAuctionState();
@@ -22,7 +24,6 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
 
   late TextEditingController titleCtrl;
   late TextEditingController artistCtrl;
-  // late TextEditingController descCtrl; // Removed
   late TextEditingController sizeCtrl;
   late TextEditingController aboutCtrl;
   late TextEditingController startBidCtrl;
@@ -43,7 +44,6 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
     super.initState();
     titleCtrl = TextEditingController(text: widget.auction?.artTitle ?? "");
     artistCtrl = TextEditingController(text: widget.auction?.artistName ?? "");
-    // descCtrl = TextEditingController(text: widget.auction?.description ?? ""); // Removed
     sizeCtrl = TextEditingController(text: widget.auction?.size ?? "");
     aboutCtrl = TextEditingController(text: widget.auction?.aboutPiece ?? "");
     startBidCtrl = TextEditingController(
@@ -54,11 +54,20 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
     );
 
     if (widget.auction != null) {
-      startTime = widget.auction!.startTime;
-      endTime = widget.auction!.endTime;
       selectedArtId = widget.auction!.artId;
       selectedArtTitle = widget.auction!.artTitle;
       artImageUrl = widget.auction!.artImageUrl;
+
+      // Handle copy/relist logic
+      if (widget.isRelist) {
+        // Reset times for a new auction
+        startTime = DateTime.now();
+        endTime = DateTime.now().add(const Duration(days: 1));
+      } else {
+        // Edit mode: keep existing times
+        startTime = widget.auction!.startTime;
+        endTime = widget.auction!.endTime;
+      }
     }
   }
 
@@ -112,9 +121,11 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
         );
       }
 
-      final String id =
-          widget.auction?.id ??
-          FirebaseFirestore.instance.collection("auctions").doc().id;
+      // 1. Determine ID (New if null OR isRelist)
+      final String id = (widget.auction == null || widget.isRelist)
+          ? FirebaseFirestore.instance.collection("auctions").doc().id
+          : widget.auction!.id;
+
       final int startBid = int.parse(startBidCtrl.text);
 
       final auctionData = {
@@ -123,18 +134,28 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
         "artTitle": titleCtrl.text,
         "artImageUrl": finalImageUrl,
         "artistName": artistCtrl.text,
-        "description": aboutCtrl.text, // Use about text as description
+        "description": aboutCtrl.text,
         "size": sizeCtrl.text,
         "aboutPiece": aboutCtrl.text,
         "startTime": Timestamp.fromDate(startTime),
         "endTime": Timestamp.fromDate(endTime),
         "startingBid": startBid,
         "minIncrement": int.parse(incrementCtrl.text),
-        "currentBid": widget.auction?.currentBid ?? startBid,
-        "highestBidderId": widget.auction?.highestBidderId,
-        "highestBidderName": widget.auction?.highestBidderName,
-        "status": widget.auction?.status.name ?? _calculateInitialStatus(),
-        "createdAt": widget.auction?.createdAt != null
+        // Reset bid info if relisting
+        "currentBid": widget.isRelist
+            ? startBid
+            : (widget.auction?.currentBid ?? startBid),
+        "highestBidderId": widget.isRelist
+            ? null
+            : widget.auction?.highestBidderId,
+        "highestBidderName": widget.isRelist
+            ? null
+            : widget.auction?.highestBidderName,
+        // Reset status if relisting
+        "status": widget.isRelist
+            ? _calculateInitialStatus()
+            : (widget.auction?.status.name ?? _calculateInitialStatus()),
+        "createdAt": (widget.auction != null && !widget.isRelist)
             ? Timestamp.fromDate(widget.auction!.createdAt)
             : FieldValue.serverTimestamp(),
         "createdBy": "admin",
@@ -145,14 +166,20 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
           .doc(id)
           .set(auctionData);
 
-      if (widget.auction == null) {
-        // Send global notification for new auction
-        await NotificationService().sendGlobal(
-          title: "New Auction Alert!",
-          body: "Rare piece '${titleCtrl.text}' is now open for bidding.",
-          type: NotificationType.new_auction,
-          auctionId: id,
-        );
+      if (widget.auction == null || widget.isRelist) {
+        try {
+          debugPrint("CreateNewAuction: Sending global notification for $id");
+          // Send global notification for new auction
+          await NotificationService().sendGlobal(
+            title: "New Auction Alert!",
+            body: "Rare piece '${titleCtrl.text}' is now open for bidding.",
+            type: NotificationType.new_auction,
+            auctionId: id,
+          );
+          debugPrint("CreateNewAuction: Notification sent successfully");
+        } catch (e) {
+          debugPrint("CreateNewAuction: Failed to send notification: $e");
+        }
       }
 
       if (mounted) Navigator.pop(context);
@@ -175,7 +202,9 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
   @override
   Widget build(BuildContext context) {
     return AdminScaffold(
-      title: widget.auction == null ? "Add Auction" : "Edit Auction",
+      title: widget.isRelist
+          ? "Relist Auction"
+          : (widget.auction == null ? "Add Auction" : "Edit Auction"),
       showBack: true,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -278,7 +307,7 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
                   child: _isSaving
                       ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
-                          widget.auction == null
+                          widget.auction == null || widget.isRelist
                               ? "CREATE AUCTION"
                               : "UPDATE AUCTION",
                           style: const TextStyle(
@@ -337,9 +366,18 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const LinearProgressIndicator();
         final artworks = snapshot.data!;
+        final artworkIds = artworks.map((a) => a["id"].toString()).toSet();
+
+        // ✅ Fix: If selectedArtId is custom or not in list, fallback to null (Custom)
+        String? dropdownValue;
+        if (selectedArtId != null && artworkIds.contains(selectedArtId)) {
+          dropdownValue = selectedArtId;
+        } else {
+          dropdownValue = null;
+        }
 
         return DropdownButtonFormField<String>(
-          value: selectedArtId,
+          value: dropdownValue,
           decoration: const InputDecoration(
             labelText: "Link to Existing Artwork (Optional)",
           ),
@@ -365,10 +403,11 @@ class _AdminAddEditAuctionState extends State<AdminAddEditAuction> {
                 artImageUrl = art["imageUrl"].toString();
                 artistCtrl.text = (art["artistName"] ?? art["artist"] ?? "")
                     .toString();
-                // descCtrl.text = (art["description"] ?? "").toString(); // Removed
                 sizeCtrl.text = (art["sizeCm"] ?? art["size"] ?? "").toString();
               });
             } else {
+              // If switching TO custom, we keep the text fields as is (user can edit)
+              // but we clear the ID linkage.
               setState(() => selectedArtId = null);
             }
           },

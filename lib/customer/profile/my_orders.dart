@@ -111,165 +111,251 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
     final displayDate = isDelivered
         ? order.estimatedDeliveryDate
         : order.estimatedDeliveryDate;
-    final dateLabel = isDelivered ? "Delivered on" : "Estimated Delivery";
-    final dateColor = isDelivered ? Colors.green : Colors.blue;
+    final dateLabel = isDelivered ? "Delivered" : "Est. Delivery";
+    final statusColor = isDelivered ? Colors.green : const Color(0xFF2196F3);
 
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => OrderDetailPage(order: order)),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => OrderDetailPage(order: order)),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _orderImage(order.imageUrl),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                // Header: ID and Status Pill
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Order #${order.id.substring(0, 6).toUpperCase()}",
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isDelivered
+                                ? Icons.check_circle
+                                : Icons.local_shipping_outlined,
+                            size: 14,
+                            color: statusColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isDelivered ? "Delivered" : "In Transit",
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _orderImage(order.imageUrl),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            order.artTitle,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 17,
+                              color: Color(0xFF1A1A1A),
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            "₹${order.price}",
+                            style: const TextStyle(
+                              color: Color(0xFFE16417),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today_outlined,
+                                size: 14,
+                                color: Colors.grey[500],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                "$dateLabel: ${_formatDate(displayDate)}",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (hasReview || canRate) ...[
+                  const SizedBox(height: 16),
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
+                ],
+
+                if (hasReview) ...[
+                  Row(
                     children: [
+                      _starsRow(order.rating ?? 0),
+                      const SizedBox(width: 8),
                       Text(
-                        order.artTitle,
+                        "${order.rating}.0",
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                          color: Color(0xFF1A1A1A),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        "₹${order.price}",
-                        style: const TextStyle(
-                          color: Color(0xFFE16417),
-                          fontWeight: FontWeight.w600,
+                      const Spacer(),
+                      if (order.ratedAt != null)
+                        Text(
+                          "Rated on ${_formatDate(order.ratedAt!)}",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[400],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        "Ordered on ${_formatDate(order.orderedAt)}",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
                     ],
                   ),
-                ),
+                  if ((order.review ?? "").trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        "\"${order.review!.trim()}\"",
+                        style: TextStyle(
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey[700],
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+
+                if (canRate)
+                  Container(
+                    width: double.infinity,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFE16417), Color(0xFF80431F)],
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFE16417).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton(
+                      onPressed: _busy ? null : () => _openRatingDialog(order),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                      ),
+                      child: Text(
+                        _busy ? "Please wait..." : "Rate Order",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
-
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: dateColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: dateColor.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    isDelivered ? Icons.check_circle : Icons.local_shipping,
-                    size: 18,
-                    color: dateColor,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    "$dateLabel: ${_formatDate(displayDate)}",
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: dateColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            if (hasReview) ...[
-              const SizedBox(height: 12),
-              const Divider(),
-              Row(
-                children: [
-                  _starsRow(order.rating ?? 0),
-                  const SizedBox(width: 8),
-                  Text(
-                    "${order.rating}/5",
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const Spacer(),
-                  if (order.ratedAt != null)
-                    Text(
-                      _formatDate(order.ratedAt!),
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                ],
-              ),
-              if ((order.review ?? "").trim().isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "\"${order.review!.trim()}\"",
-                    style: const TextStyle(fontStyle: FontStyle.italic),
-                  ),
-                ),
-              ],
-            ],
-
-            if (canRate) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton(
-                  onPressed: _busy ? null : () => _openRatingDialog(order),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE16417),
-                    disabledBackgroundColor: Colors.grey.shade400,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    _busy ? "PLEASE WAIT..." : "Rate This Order",
-                    style: TextStyle(
-                      color: _busy ? Colors.black54 : Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _orderImage(String? url) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: 70,
-        height: 90,
-        color: Colors.grey.shade200,
-        child: (url ?? "").isEmpty
-            ? const Icon(Icons.image, color: Colors.black38)
-            : Image.network(url!, fit: BoxFit.cover),
+    return Container(
+      width: 80,
+      height: 100,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.grey[200],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        image: (url != null && url.isNotEmpty)
+            ? DecorationImage(image: NetworkImage(url), fit: BoxFit.cover)
+            : null,
       ),
+      child: (url == null || url.isEmpty)
+          ? Icon(Icons.image_outlined, color: Colors.grey[400])
+          : null,
     );
   }
 
@@ -293,9 +379,11 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                   return InkWell(
                     onTap: () => setLocal(() => selected = star),
                     child: Icon(
-                      star <= selected ? Icons.star : Icons.star_border,
-                      color: Colors.orange,
-                      size: 28,
+                      star <= selected
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: const Color(0xFFFFC107),
+                      size: 32,
                     ),
                   );
                 }),
@@ -304,20 +392,35 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
               TextField(
                 controller: ctrl,
                 maxLines: 3,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: "Write a review (optional)",
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
             ],
           ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text("Cancel"),
+              child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text("Submit"),
+              child: const Text(
+                "Submit",
+                style: TextStyle(
+                  color: Color(0xFFE16417),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -365,9 +468,9 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
       children: List.generate(
         5,
         (i) => Icon(
-          i < rating ? Icons.star : Icons.star_border,
-          size: 18,
-          color: Colors.orange,
+          i < rating ? Icons.star_rounded : Icons.star_outline_rounded,
+          size: 20,
+          color: const Color(0xFFFFC107),
         ),
       ),
     );

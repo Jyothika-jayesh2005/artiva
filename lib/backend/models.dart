@@ -11,6 +11,7 @@ class AppUser {
   final String phone;
   final Role role;
   final String photoUrl;
+  final String address; // ✅ Added address
   final bool archived;
 
   AppUser({
@@ -20,6 +21,7 @@ class AppUser {
     required this.phone,
     required this.role,
     this.photoUrl = "",
+    this.address = "", // ✅ Added default
     this.archived = false,
     this.lastAuctionCheck,
   });
@@ -37,6 +39,7 @@ class AppUser {
       phone: (map["phone"] ?? "").toString(),
       role: role,
       photoUrl: (map["photoUrl"] ?? "").toString(),
+      address: (map["address"] ?? "").toString(), // ✅ Map address
       archived: map["archived"] == true,
       lastAuctionCheck: _parseDateTime(map["lastAuctionCheck"]),
     );
@@ -49,6 +52,7 @@ class AppUser {
       "phone": phone,
       "role": role == Role.admin ? "admin" : "user",
       "photoUrl": photoUrl,
+      "address": address, // ✅ Save address
       "archived": archived,
       "lastAuctionCheck": lastAuctionCheck != null
           ? Timestamp.fromDate(lastAuctionCheck!)
@@ -278,7 +282,7 @@ class ArtworkRatingSummary {
 
 // ---------------- AUCTION ----------------
 
-enum AuctionStatus { scheduled, live, ended, sold }
+enum AuctionStatus { scheduled, live, ended, sold, pending_payment, unsold }
 
 class Auction {
   final String id;
@@ -300,7 +304,12 @@ class Auction {
   final DateTime createdAt;
   final String createdBy;
 
-  final int? finalPrice; // ✅ New field
+  final int? finalPrice;
+  final DateTime? paymentDueAt; // ✅ Restored
+  final bool reminderSent; // ✅ Restored
+  final Map<String, dynamic>? shippingAddress; // ✅ Restored
+  final OrderStatus deliveryStatus;
+  final DateTime? paymentDate;
 
   Auction({
     required this.id,
@@ -322,7 +331,39 @@ class Auction {
     required this.createdAt,
     required this.createdBy,
     this.finalPrice,
+    this.paymentDueAt,
+    this.reminderSent = false,
+    this.shippingAddress,
+    this.deliveryStatus = OrderStatus.pending,
+    this.paymentDate, // ✅ Added
   });
+
+  // ✅ AUTO-STATUS LOGIC
+  // Updated: Paid+1 = Shipped, Paid+2 = Delivered
+  DateTime? get estimatedDeliveryDate =>
+      paymentDate?.add(const Duration(days: 2));
+  DateTime? get shippedDate => paymentDate?.add(const Duration(days: 1));
+
+  OrderStatus get effectiveDeliveryStatus {
+    if (status != AuctionStatus.sold) return OrderStatus.pending;
+    if (deliveryStatus == OrderStatus.delivered) return OrderStatus.delivered;
+    if (paymentDate == null)
+      return OrderStatus.pending; // Should accept payment first
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final delDt = estimatedDeliveryDate!;
+    final delDay = DateTime(delDt.year, delDt.month, delDt.day);
+
+    final shipDt = shippedDate!;
+    final shipDay = DateTime(shipDt.year, shipDt.month, shipDt.day);
+
+    if (!today.isBefore(delDay)) return OrderStatus.delivered;
+    if (!today.isBefore(shipDay)) return OrderStatus.shipped;
+
+    return deliveryStatus;
+  }
 
   factory Auction.fromMap(String id, Map<String, dynamic> map) {
     return Auction(
@@ -345,6 +386,13 @@ class Auction {
       createdAt: _parseDateTime(map["createdAt"]),
       createdBy: (map["createdBy"] ?? "").toString(),
       finalPrice: map["finalPrice"] != null ? _toInt(map["finalPrice"]) : null,
+      paymentDueAt: _parseDateTime(map["paymentDueAt"]),
+      reminderSent: map["reminderSent"] == true,
+      shippingAddress: map["shippingAddress"] is Map
+          ? Map<String, dynamic>.from(map["shippingAddress"])
+          : null,
+      deliveryStatus: _parseOrderStatus(map["deliveryStatus"]),
+      paymentDate: _parseDateTime(map["paymentDate"]), // ✅ Added
     );
   }
 
@@ -368,6 +416,15 @@ class Auction {
       "createdAt": Timestamp.fromDate(createdAt),
       "createdBy": createdBy,
       "finalPrice": finalPrice,
+      "paymentDueAt": paymentDueAt != null
+          ? Timestamp.fromDate(paymentDueAt!)
+          : null,
+      "reminderSent": reminderSent,
+      "shippingAddress": shippingAddress,
+      "deliveryStatus": deliveryStatus.name,
+      "paymentDate": paymentDate != null
+          ? Timestamp.fromDate(paymentDate!)
+          : null, // ✅ Added
     };
   }
 }
@@ -377,7 +434,16 @@ AuctionStatus _parseAuctionStatus(dynamic v) {
   if (s == "live") return AuctionStatus.live;
   if (s == "ended") return AuctionStatus.ended;
   if (s == "sold") return AuctionStatus.sold;
+  if (s == "pending_payment") return AuctionStatus.pending_payment;
+  if (s == "unsold") return AuctionStatus.unsold;
   return AuctionStatus.scheduled;
+}
+
+OrderStatus _parseOrderStatus(dynamic v) {
+  final s = v?.toString().toLowerCase() ?? "";
+  if (s == "shipped") return OrderStatus.shipped;
+  if (s == "delivered") return OrderStatus.delivered;
+  return OrderStatus.pending;
 }
 
 // ---------------- BID ----------------

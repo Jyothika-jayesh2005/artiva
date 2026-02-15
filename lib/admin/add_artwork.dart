@@ -270,137 +270,303 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
       title: _isEdit ? "Edit Artwork" : "Add Artwork",
       showBack: true,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 1. Modern Image Uplader
               GestureDetector(
                 onTap: _pickImage,
                 child: Container(
-                  height: 160,
+                  height: 220,
+                  width: double.infinity,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey),
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFFFF8C1A).withOpacity(0.5),
+                      width: 2,
+                      style: BorderStyle
+                          .solid, // Using solid for cleaner look, could be dotted with package
+                    ),
                   ),
                   child: preview.isEmpty
-                      ? const Center(child: Text("Tap to upload image"))
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF8C1A).withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.add_photo_alternate_rounded,
+                                size: 40,
+                                color: Color(0xFFFF8C1A),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              "Tap to upload artwork image",
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        )
                       : ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: _previewImage(preview),
+                          borderRadius: BorderRadius.circular(18),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              _previewImage(preview),
+                              Positioned(
+                                bottom: 12,
+                                right: 12,
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black12,
+                                        blurRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.edit,
+                                    color: Color(0xFFFF8C1A),
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                 ),
               ),
+              const SizedBox(height: 32),
+
+              // 2. Core Details Section
+              const Text(
+                "Core Details",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
-
-              _input("Artwork Title", titleCtrl),
-              _input("Price", priceCtrl, keyboard: TextInputType.number),
-              _input(
-                "Total Quantity",
-                quantityCtrl,
-                keyboard: TextInputType.number,
-              ),
-
-              // ✅ Category
-              _dropdown(
-                label: "Category",
-                value: selectedCategory,
-                items: categories,
-                onChanged: (v) => setState(() => selectedCategory = v),
-              ),
-
-              // ✅ Material (saved as "paper")
-              _dropdown(
-                label: "Material",
-                value: selectedMaterial,
-                items: const [
-                  "Canvas",
-                  "Paper",
-                  "Wood",
-                  "Acrylic Sheet",
-                  "Other",
+              _input("Artwork Title", titleCtrl, icon: Icons.title),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _input(
+                      "Price (₹)",
+                      priceCtrl,
+                      keyboard: TextInputType.number,
+                      icon: Icons.currency_rupee,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _input(
+                      "Quantity",
+                      quantityCtrl,
+                      keyboard: TextInputType.number,
+                      icon: Icons.inventory_2_outlined,
+                    ),
+                  ),
                 ],
-                onChanged: (v) => setState(() => selectedMaterial = v),
               ),
 
-              // ✅ COA
+              const SizedBox(height: 8),
+
+              // Dropdowns Row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _dropdown(
+                      label: "Category",
+                      value: selectedCategory,
+                      items: categories,
+                      onChanged: (v) => setState(() => selectedCategory = v),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _dropdown(
+                      label: "Material",
+                      value: selectedMaterial,
+                      items: const [
+                        "Canvas",
+                        "Paper",
+                        "Wood",
+                        "Acrylic Sheet",
+                        "Other",
+                      ],
+                      onChanged: (v) => setState(() => selectedMaterial = v),
+                    ),
+                  ),
+                ],
+              ),
               _dropdown(
-                label: "COA (Certificate of Authenticity)",
+                label: "COA Included?",
                 value: coa,
                 items: const ["Yes", "No"],
                 onChanged: (v) => setState(() => coa = v),
               ),
 
-              _input("Size (cm)", sizeCmCtrl),
-              _input("Size (in)", sizeInCtrl),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _input(
+                      "Size (cm)",
+                      sizeCmCtrl,
+                      icon: Icons.straighten,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _input(
+                      "Size (in)",
+                      sizeInCtrl,
+                      icon: Icons.straighten,
+                    ),
+                  ),
+                ],
+              ),
 
               _input(
                 "Description",
                 descriptionCtrl,
                 keyboard: TextInputType.multiline,
                 maxLines: 4,
+                icon: Icons.description_outlined,
               ),
 
-              const Divider(height: 30, thickness: 1),
+              const SizedBox(height: 24),
+              const Divider(thickness: 1, height: 40),
+
+              // 3. Artist Info
               const Text(
                 "Artist Information",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 10),
-              _input("Artist Name", artistNameCtrl),
+              const SizedBox(height: 16),
+              _input("Artist Name", artistNameCtrl, icon: Icons.person_outline),
               _input(
                 "Artist Statement",
                 artistStatementCtrl,
                 keyboard: TextInputType.multiline,
                 maxLines: 3,
+                icon: Icons.format_quote_rounded,
               ),
 
-              const Divider(height: 30, thickness: 1),
+              const SizedBox(height: 24),
+              const Divider(thickness: 1, height: 40),
+
+              // 4. Behind the Artwork
               const Text(
                 "Behind the Artwork",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 10),
-              _input("Inspiration", inspirationCtrl, maxLines: 2),
-              _input("Meaning", meaningCtrl, maxLines: 2),
-              _input("Process", processCtrl, maxLines: 2),
-              _input("Symbolism", symbolismCtrl, maxLines: 2),
+              const SizedBox(height: 16),
+              _input(
+                "Inspiration",
+                inspirationCtrl,
+                maxLines: 2,
+                icon: Icons.lightbulb_outline,
+              ),
+              _input(
+                "Meaning",
+                meaningCtrl,
+                maxLines: 2,
+                icon: Icons.psychology_outlined,
+              ),
+              _input(
+                "Process",
+                processCtrl,
+                maxLines: 2,
+                icon: Icons.build_outlined,
+              ),
+              _input(
+                "Symbolism",
+                symbolismCtrl,
+                maxLines: 2,
+                icon: Icons.auto_awesome_outlined,
+              ),
 
-              const Divider(height: 30, thickness: 1),
+              const SizedBox(height: 24),
+              const Divider(thickness: 1, height: 40),
+
+              // 5. From the Artist
               const Text(
                 "From the Artist",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 10),
-              _input("Artist Quote", artistQuoteCtrl, maxLines: 2),
-              _input("How it was made", howMadeItCtrl, maxLines: 3),
-              _input("What viewers should feel", viewerFeelCtrl, maxLines: 2),
+              const SizedBox(height: 16),
+              _input(
+                "Artist Quote",
+                artistQuoteCtrl,
+                maxLines: 2,
+                icon: Icons.record_voice_over_outlined,
+              ),
+              _input(
+                "How it was made",
+                howMadeItCtrl,
+                maxLines: 3,
+                icon: Icons.handyman_outlined,
+              ),
+              _input(
+                "What viewers should feel",
+                viewerFeelCtrl,
+                maxLines: 2,
+                icon: Icons.mood,
+              ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 40),
+
+              // 6. Action Button
               SizedBox(
                 width: double.infinity,
-                height: 48,
+                height: 54,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFF8C1A),
                     foregroundColor: Colors.white,
-                    elevation: 12, // stronger = 3D feel
-                    shadowColor: Colors.black.withOpacity(0.5),
-
+                    elevation: 8,
+                    shadowColor: const Color(0xFFFF8C1A).withOpacity(0.4),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   onPressed: _saveArtwork,
                   child: _saving
                       ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
                         )
-                      : Text(_isEdit ? "Update Artwork" : "Add Artwork"),
+                      : Text(
+                          _isEdit ? "UPDATE ARTWORK" : "PUBLISH ARTWORK",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            letterSpacing: 1,
+                          ),
+                        ),
                 ),
               ),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -420,21 +586,44 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     TextEditingController c, {
     TextInputType keyboard = TextInputType.text,
     int maxLines = 1,
+    IconData? icon,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: c,
         keyboardType: keyboard,
         maxLines: maxLines,
-        cursorColor: const Color(0xFFFF8C1A), // ✅ Orange cursor
+        cursorColor: const Color(0xFFFF8C1A),
+        style: const TextStyle(fontWeight: FontWeight.w500),
         decoration: InputDecoration(
           labelText: label,
-          floatingLabelStyle: const TextStyle(color: Color(0xFFFF8C1A)),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          alignLabelWithHint: maxLines > 1,
+          floatingLabelStyle: const TextStyle(
+            color: Color(0xFFFF8C1A),
+            fontWeight: FontWeight.bold,
+          ),
+          prefixIcon: icon != null
+              ? Icon(icon, color: const Color(0xFFFF8C1A))
+              : null,
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(color: Color(0xFFFF8C1A), width: 2),
+            // Light shadow effect for focus?
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
           ),
         ),
       ),
@@ -448,11 +637,17 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     required ValueChanged<String> onChanged,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 16),
       child: DropdownButtonFormField<String>(
         value: value,
+        isExpanded: true, // ✅ Prevents text overflow
         items: items
-            .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
+            .map(
+              (e) => DropdownMenuItem<String>(
+                value: e,
+                child: Text(e, overflow: TextOverflow.ellipsis),
+              ),
+            )
             .toList(),
         onChanged: (v) {
           if (v == null) return;
@@ -460,11 +655,27 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
         },
         decoration: InputDecoration(
           labelText: label,
-          floatingLabelStyle: const TextStyle(color: Color(0xFFFF8C1A)),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          floatingLabelStyle: const TextStyle(
+            color: Color(0xFFFF8C1A),
+            fontWeight: FontWeight.bold,
+          ),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(color: Color(0xFFFF8C1A), width: 2),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
           ),
         ),
       ),

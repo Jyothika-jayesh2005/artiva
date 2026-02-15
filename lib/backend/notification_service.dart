@@ -105,6 +105,7 @@ class NotificationService {
           for (var change in snap.docChanges) {
             if (change.type == DocumentChangeType.added) {
               final data = change.doc.data();
+              debugPrint("Global Notification Received: $data"); // DEBUG LOG
               if (data != null) {
                 final title = data["title"] ?? "New Update";
                 final body = data["body"] ?? "";

@@ -11,7 +11,7 @@ import 'package:artiva/admin/admin_dashboard.dart';
 import 'package:artiva/customer/home_screen.dart';
 
 import 'package:artiva/auth/splash_screen.dart';
-import 'package:artiva/auth/onboarding_screen.dart';
+
 import 'package:artiva/customer/notifications/notifications_page.dart';
 import 'package:artiva/backend/notification_service.dart';
 import 'package:artiva/services/local_notification_service.dart';
@@ -55,7 +55,7 @@ class ArtivaApp extends StatelessWidget {
       home: const SplashScreen(),
       routes: {
         '/splash': (_) => const SplashScreen(),
-        '/onboarding': (_) => const OnboardingScreen(),
+
         '/welcome': (_) => const WelcomeScreen(),
         '/login': (_) => const LoginScreen(),
         '/register': (_) => const RegisterScreen(),

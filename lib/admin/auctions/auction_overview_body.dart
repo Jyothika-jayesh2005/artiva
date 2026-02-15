@@ -171,8 +171,12 @@ class AuctionOverviewBody extends StatelessWidget {
         return Colors.red;
       case AuctionStatus.ended:
         return Colors.orange;
+      case AuctionStatus.pending_payment:
+        return Colors.purple;
       case AuctionStatus.sold:
         return Colors.green;
+      case AuctionStatus.unsold:
+        return Colors.grey;
     }
   }
 }

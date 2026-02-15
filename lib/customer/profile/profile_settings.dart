@@ -28,7 +28,8 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
 
   // ✅ FIXED: use your real Cloudinary config
   static const String _cloudName = "dblfdal0u";
-  static const String _uploadPreset = "profiles_unsigned"; // <-- create this preset
+  static const String _uploadPreset =
+      "profiles_unsigned"; // <-- create this preset
 
   @override
   void initState() {
@@ -148,8 +149,9 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Profile updated")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Profile updated")));
 
       Navigator.pop(context);
     } catch (e) {
@@ -198,10 +200,17 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
                         : null,
                   ),
                   const SizedBox(height: 10),
-                  OutlinedButton.icon(
+                  TextButton.icon(
                     onPressed: _saving ? null : _pickPhoto,
-                    icon: const Icon(Icons.photo_camera_outlined),
+                    icon: const Icon(Icons.camera_alt_outlined, size: 20),
                     label: const Text("Change Photo"),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFE16417),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -220,20 +229,52 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
               ],
             ),
             const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: _saving ? null : _save,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE16417),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+            Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFE16417), Color(0xFF80431F)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
                   ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFE16417).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  _saving ? "SAVING..." : "Save Changes",
-                  style: const TextStyle(color: Colors.white),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _saving ? null : _save,
+                    borderRadius: BorderRadius.circular(30),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 48,
+                        vertical: 16,
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              "Save Changes",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -252,18 +293,40 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
-      child: TextField(
-        controller: controller,
-        readOnly: !editable,
-        inputFormatters: inputFormatters,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon),
-          filled: true,
-          fillColor: editable ? Colors.white : Colors.grey.shade200,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
+      child: Container(
+        decoration: BoxDecoration(
+          color: editable ? Colors.white : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: controller,
+          readOnly: !editable,
+          inputFormatters: inputFormatters,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: Icon(icon, color: Colors.grey[600]),
+            floatingLabelBehavior: FloatingLabelBehavior.auto,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0xFFE16417),
+                width: 1.5,
+              ),
+            ),
           ),
         ),
       ),

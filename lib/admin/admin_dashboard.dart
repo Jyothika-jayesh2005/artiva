@@ -18,6 +18,7 @@ import 'exhibition_bookings_page.dart';
 import 'artwork_orders_page.dart';
 import 'package:artiva/admin/auctions/admin_manage_auctions.dart';
 import 'package:artiva/admin/auctions/auction_overview_body.dart';
+import 'package:artiva/admin/auctions/admin_auction_delivery.dart'; // ✅ Added
 
 enum AdminMode { exhibition, artwork, auction }
 
@@ -93,6 +94,49 @@ class _AdminDashboardState extends State<AdminDashboard> {
       }
       _prevOrderCount = orders.length;
     });
+
+    // ✅ ADMIN NOTIFICATIONS LISTENER
+    FirebaseFirestore.instance
+        .collection('admin_notifications')
+        .orderBy("createdAt", descending: true)
+        .limit(5)
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+
+          // We only care about NEW additions after the initial load.
+          // But for simplicity/robustness, we can just check doc changes.
+          for (var change in snap.docChanges) {
+            if (change.type == DocumentChangeType.added) {
+              final data = change.doc.data();
+              if (data != null) {
+                final createdAt = (data["createdAt"] as Timestamp?)?.toDate();
+                // Only show if created very recently (e.g. last 1 min) to avoid spam on reload
+                if (createdAt != null &&
+                    DateTime.now().difference(createdAt).inMinutes < 2) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "🔔 ${data['title']}",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(data['body'] ?? ""),
+                        ],
+                      ),
+                      duration: const Duration(seconds: 6),
+                      backgroundColor: Colors.blueGrey,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            }
+          }
+        });
   }
 
   void _setMode(AdminMode next) {
@@ -160,7 +204,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (mode == AdminMode.auction) {
       return _NavConfig(
-        pages: [dashboardPage, const AdminManageAuctions()],
+        pages: [
+          dashboardPage,
+          const AdminManageAuctions(),
+          const AdminAuctionDeliveryPage(), // ✅ Added
+        ],
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.dashboard_rounded),
@@ -169,6 +217,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
           BottomNavigationBarItem(
             icon: Icon(Icons.gavel_rounded),
             label: "Auctions",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.local_shipping_rounded), // ✅ Added
+            label: "Delivery",
           ),
         ],
       );

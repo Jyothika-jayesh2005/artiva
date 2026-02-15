@@ -4,6 +4,7 @@ import 'package:artiva/backend/models.dart';
 import 'package:artiva/backend/auction_service.dart';
 import 'package:artiva/admin/auctions/admin_add_edit_auction.dart';
 import 'package:artiva/admin/auctions/admin_auction_detail.dart';
+import 'package:artiva/backend/notification_service.dart';
 
 class AdminManageAuctions extends StatefulWidget {
   const AdminManageAuctions({super.key});
@@ -21,7 +22,7 @@ class _AdminManageAuctionsState extends State<AdminManageAuctions>
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    _auctionService.updateEndedAuctions(); // ✅ Lazy update on init
+    // _auctionService.updateEndedAuctions(); // Handled by Cloud Functions now
   }
 
   @override
@@ -34,6 +35,36 @@ class _AdminManageAuctionsState extends State<AdminManageAuctions>
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: "Manage Auctions",
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications_active),
+          onPressed: () async {
+            try {
+              debugPrint("ManualTrigger: Sending test notification...");
+              // Send test notification using direct class reference
+              await NotificationService().sendGlobal(
+                title: "Test Notification",
+                body: "This is a manual test from Admin Panel.",
+                type: NotificationType.new_auction,
+                auctionId: "test_auction_id",
+              );
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Test Notification Sent!")),
+                );
+              }
+            } catch (e) {
+              debugPrint("ManualTrigger Error: $e");
+              if (context.mounted) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text("Error: $e")));
+              }
+            }
+          },
+        ),
+      ],
       body: Column(
         children: [
           TabBar(
@@ -289,8 +320,12 @@ class _AdminManageAuctionsState extends State<AdminManageAuctions>
         return Colors.red;
       case AuctionStatus.ended:
         return Colors.orange;
+      case AuctionStatus.pending_payment:
+        return Colors.purple;
       case AuctionStatus.sold:
         return Colors.green;
+      case AuctionStatus.unsold:
+        return Colors.grey;
     }
   }
 }

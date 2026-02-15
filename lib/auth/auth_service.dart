@@ -209,9 +209,9 @@ class AuthService {
         photoUrl: "",
       );
 
-      final fresh = await _getOrCreateUserDoc(user);
-      userNotifier.value = fresh;
-      return fresh;
+      // ✅ Use local data immediately to prevent read latency
+      userNotifier.value = appUser;
+      return appUser;
     } on FirebaseAuthException catch (e) {
       throw Exception(_friendlyAuthError(e));
     } finally {
@@ -245,6 +245,7 @@ class AuthService {
   Future<AppUser> updateProfile({
     required String name,
     required String phone,
+    String? address, // ✅ Added address parameter
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not logged in.');
@@ -255,11 +256,17 @@ class AuthService {
         .collection('users')
         .doc(user.uid);
 
-    await ref.update({
+    final Map<String, dynamic> data = {
       'name': name,
       'phone': phone.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    };
+
+    if (address != null) {
+      data['address'] = address.trim();
+    }
+
+    await ref.update(data);
 
     final updated = await _getOrCreateUserDoc(user);
     userNotifier.value = updated;

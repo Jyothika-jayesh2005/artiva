@@ -35,16 +35,15 @@ class _SplashScreenState extends State<SplashScreen>
 
     _fade = CurvedAnimation(parent: _introC, curve: Curves.easeOut);
 
-    _scale = Tween<double>(begin: 0.90, end: 1.0).animate(
-      CurvedAnimation(parent: _introC, curve: Curves.easeOutBack),
-    );
+    _scale = Tween<double>(
+      begin: 0.90,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _introC, curve: Curves.easeOutBack));
 
     _slide = Tween<Offset>(
       begin: const Offset(0, 0.12),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _introC, curve: Curves.easeOutCubic),
-    );
+    ).animate(CurvedAnimation(parent: _introC, curve: Curves.easeOutCubic));
 
     _loopC = AnimationController(
       vsync: this,
@@ -58,7 +57,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     _timer = Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/onboarding');
+      Navigator.pushReplacementNamed(context, '/welcome');
     });
   }
 

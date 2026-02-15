@@ -4,6 +4,7 @@ import 'package:artiva/backend/models.dart';
 import 'package:artiva/backend/auction_service.dart';
 import 'package:artiva/auth/auth_service.dart';
 import 'package:artiva/customer/auctions/auction_payment.dart';
+import 'package:artiva/customer/auctions/order_tracking_page.dart'; // ✅ Added import
 
 class MyWinsScreen extends StatefulWidget {
   const MyWinsScreen({super.key});
@@ -41,6 +42,7 @@ class _MyWinsScreenState extends State<MyWinsScreen> {
                 (a) =>
                     a.highestBidderId == user.uid &&
                     (a.status == AuctionStatus.ended ||
+                        a.status == AuctionStatus.pending_payment ||
                         a.status == AuctionStatus.sold ||
                         (a.status == AuctionStatus.live &&
                             DateTime.now().isAfter(a.endTime))),
@@ -221,32 +223,114 @@ class _MyWinsScreenState extends State<MyWinsScreen> {
               ),
             )
           else
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.05),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(20),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    "Order Confirmed",
-                    style: TextStyle(
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildTrackingInfo(auction), // ✅ Added Tracking info
         ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return "-";
+    return "${dt.day}/${dt.month}/${dt.year}";
+  }
+
+  Widget _buildTrackingInfo(Auction auction) {
+    final status = auction.effectiveDeliveryStatus;
+    Color color = Colors.green;
+    String statusText = "Order Confirmed";
+
+    if (status == OrderStatus.shipped) {
+      statusText = "Shipped";
+      color = Colors.blue;
+    } else if (status == OrderStatus.delivered) {
+      statusText = "Delivered";
+      color = Colors.green;
+    } else if (status == OrderStatus.pending) {
+      statusText = "Processing";
+      color = Colors.orange;
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OrderTrackingPage(auction: auction),
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.05),
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.local_shipping_rounded, color: color, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  statusText,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: color.withOpacity(0.5),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Sold On",
+                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                    ),
+                    Text(
+                      _formatDate(auction.paymentDate ?? auction.createdAt),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end, // Align to right
+                  children: [
+                    Text(
+                      "Est. Delivery",
+                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                    ),
+                    Text(
+                      _formatDate(auction.estimatedDeliveryDate),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

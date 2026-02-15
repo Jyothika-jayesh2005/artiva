@@ -4,6 +4,7 @@ import 'package:artiva/backend/models.dart';
 import 'package:artiva/backend/auction_service.dart';
 import 'package:artiva/backend/user_service.dart';
 import 'package:artiva/admin/auctions/admin_notify_winner.dart';
+import 'package:artiva/admin/auctions/admin_add_edit_auction.dart';
 
 class AdminAuctionDetail extends StatefulWidget {
   final Auction auction;
@@ -30,6 +31,29 @@ class _AdminAuctionDetailState extends State<AdminAuctionDetail> {
     return AdminScaffold(
       title: "Auction Detail",
       showBack: true,
+      actions: [
+        if (widget.auction.status == AuctionStatus.unsold ||
+            (widget.auction.status == AuctionStatus.ended &&
+                widget.auction.highestBidderId == null))
+          IconButton(
+            onPressed: () {
+              // Navigate to Add/Edit but as a "Relist" (we'll implement the handling in AddEdit)
+              // For now, we just pass the auction object.
+              // We need to update AdminAddEditAuction to handle "relist" intent or just manual edit.
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AdminAddEditAuction(
+                    auction: widget.auction,
+                    isRelist: true,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: "Relist Auction",
+          ),
+      ],
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -150,6 +174,22 @@ class _AdminAuctionDetailState extends State<AdminAuctionDetail> {
         if (!snapshot.hasData) return const LinearProgressIndicator();
         final winner = snapshot.data!;
 
+        // ✅ Determine Address to Display
+        String addressDisplay = "Not Provided";
+        Color? addressColor = Colors.red;
+
+        if (widget.auction.shippingAddress != null) {
+          final s = widget.auction.shippingAddress!;
+          final addr = s["address"] ?? "";
+          final city = s["city"] ?? "";
+          final pin = s["pincode"] ?? "";
+          addressDisplay = "$addr, $city - $pin";
+          addressColor = null; // Normal color
+        } else if (winner.address.isNotEmpty) {
+          addressDisplay = "${winner.address} (Profile Default)";
+          addressColor = Colors.orange; // Verify warning
+        }
+
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -168,7 +208,18 @@ class _AdminAuctionDetailState extends State<AdminAuctionDetail> {
               const SizedBox(height: 16),
               _uInfo(Icons.person, "Name", winner.name),
               _uInfo(Icons.email, "Email", winner.email),
-              _uInfo(Icons.phone, "Phone", winner.phone),
+              _uInfo(
+                Icons.phone,
+                "Phone",
+                winner.phone.isEmpty ? "Not Provided" : winner.phone,
+                valueColor: winner.phone.isEmpty ? Colors.red : null,
+              ),
+              _uInfo(
+                Icons.location_on,
+                "Delivery Address",
+                addressDisplay,
+                valueColor: addressColor,
+              ),
               const SizedBox(height: 24),
               if (widget.auction.status != AuctionStatus.sold)
                 SizedBox(
@@ -217,27 +268,44 @@ class _AdminAuctionDetailState extends State<AdminAuctionDetail> {
     );
   }
 
-  Widget _uInfo(IconData icon, String label, String value) {
+  Widget _uInfo(
+    IconData icon,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey),
+          Icon(icon, size: 20, color: Colors.grey),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                _ExpandableText(
+                  value,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: valueColor ?? const Color(0xFF1A1A1A),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+
+  // ... (rest of the file)
 
   Widget _buildBidHistory() {
     return StreamBuilder<List<Bid>>(
@@ -276,8 +344,60 @@ class _AdminAuctionDetailState extends State<AdminAuctionDetail> {
         return Colors.red;
       case AuctionStatus.ended:
         return Colors.orange;
+      case AuctionStatus.pending_payment:
+        return Colors.purple;
       case AuctionStatus.sold:
         return Colors.green;
+      case AuctionStatus.unsold:
+        return Colors.grey;
     }
+  }
+}
+
+class _ExpandableText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+
+  const _ExpandableText(this.text, {required this.style});
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool _isExpanded = false;
+  static const int _maxLength = 60; // Character limit before truncation
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.text.length <= _maxLength) {
+      return Text(widget.text, style: widget.style);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _isExpanded
+              ? widget.text
+              : "${widget.text.substring(0, _maxLength)}...",
+          style: widget.style,
+        ),
+        InkWell(
+          onTap: () => setState(() => _isExpanded = !_isExpanded),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 4),
+            child: Text(
+              _isExpanded ? "Show Less" : "Read More",
+              style: const TextStyle(
+                color: Colors.blue,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

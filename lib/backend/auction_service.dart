@@ -54,7 +54,9 @@ class AuctionService {
         throw Exception("Auction hasn't started yet.");
       if (now.isAfter(auction.endTime)) throw Exception("Auction has ended.");
       if (auction.status == AuctionStatus.ended ||
-          auction.status == AuctionStatus.sold) {
+          auction.status == AuctionStatus.sold ||
+          auction.status == AuctionStatus.pending_payment ||
+          auction.status == AuctionStatus.unsold) {
         throw Exception("Auction is already closed.");
       }
 
@@ -90,10 +92,21 @@ class AuctionService {
   }
 
   // Mark auction as sold (post-payment)
-  Future<void> markAsSold(String auctionId) async {
-    await _db.collection("auctions").doc(auctionId).update({
-      "status": AuctionStatus.sold.name,
-    });
+  Future<void> markAsSold(
+    String auctionId, {
+    Map<String, dynamic>? shippingAddress,
+  }) async {
+    final data = <String, dynamic>{
+      "status": "sold",
+      "paymentDueAt": FieldValue.delete(), // Remove deadline
+      "paymentDate": FieldValue.serverTimestamp(), // ✅ Added
+    };
+
+    if (shippingAddress != null) {
+      data["shippingAddress"] = shippingAddress;
+    }
+
+    await _db.collection("auctions").doc(auctionId).update(data);
   }
 
   Future<Auction?> getAuction(String id) async {
@@ -102,41 +115,63 @@ class AuctionService {
     return Auction.fromMap(doc.id, doc.data()!);
   }
 
-  // Lazy update for ended auctions
-  Future<void> updateEndedAuctions() async {
-    final now = DateTime.now();
+  // updateEndedAuctions is now handled by Cloud Functions
 
-    // Query auctions that are supposedly live/scheduled but time passed
-    // Note: complex queries might need composite index.
-    // We'll fetch active ones and filter in memory if list is small,
-    // or use a query. Here we rely on 'live' or 'scheduled' status.
-    final snap = await _db
-        .collection("auctions")
-        .where("status", whereIn: ["live", "scheduled"])
-        .get();
-
-    final batch = _db.batch();
-    bool changed = false;
-
-    for (var doc in snap.docs) {
-      final a = Auction.fromMap(doc.id, doc.data());
-      if (now.isAfter(a.endTime)) {
-        // Needs update
-        int finalPrice = a.startingBid;
-        if (a.highestBidderId != null && a.currentBid > 0) {
-          finalPrice = a.currentBid;
-        }
-
-        batch.update(doc.reference, {
-          "status": "ended",
-          "finalPrice": finalPrice,
-        });
-        changed = true;
-      }
+  // Update payment deadline (e.g. for final warning)
+  Future<void> updatePaymentDeadline(
+    String auctionId,
+    DateTime newDeadline, {
+    bool markReminderSent = false,
+  }) async {
+    final data = <String, dynamic>{
+      "paymentDueAt": Timestamp.fromDate(newDeadline),
+    };
+    if (markReminderSent) {
+      data["reminderSent"] = true;
     }
+    await _db.collection("auctions").doc(auctionId).update(data);
+  }
 
-    if (changed) {
-      await batch.commit();
-    }
+  // ✅ Manual Cancellation: Cancel the current win (e.g. non-payment)
+  Future<void> cancelWin(String auctionId) async {
+    await _db.collection("auctions").doc(auctionId).update({
+      "status": "unsold",
+      "highestBidderId": null,
+      "highestBidderName": null,
+      "currentBid":
+          0, // Optional: Reset bid or keep it? Usually reset if unsold.
+      "paymentDueAt": FieldValue.delete(),
+    });
+  }
+
+  // ✅ Manual Re-award: Assign to a specific bidder (e.g. 2nd highest)
+  Future<void> reawardAuction(
+    String auctionId,
+    String userId,
+    String userName,
+    int amount,
+  ) async {
+    // 1. Get current auction to preserve/check validity if needed
+    // 2. Update with new winner info
+    await _db.collection("auctions").doc(auctionId).update({
+      "status": "pending_payment",
+      "highestBidderId": userId,
+      "highestBidderName": userName,
+      "currentBid": amount,
+      "paymentDueAt": Timestamp.fromDate(
+        DateTime.now().add(const Duration(days: 1)),
+      ), // Reset deadline
+      "reminderSent": false, // Reset reminder flag for new winner
+    });
+  }
+
+  // ✅ Update Delivery Status
+  Future<void> updateDeliveryStatus(
+    String auctionId,
+    OrderStatus status,
+  ) async {
+    await _db.collection("auctions").doc(auctionId).update({
+      "deliveryStatus": status.name,
+    });
   }
 }

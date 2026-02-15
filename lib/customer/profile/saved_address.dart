@@ -8,14 +8,16 @@ import '../checkout/checkout_page.dart';
 
 class SavedAddressPage extends StatefulWidget {
   final bool isFromCheckout;
+  final bool isSelectionMode; // ✅ Added
   final Map<String, String>? artwork;
-  final int quantity; // ✅ NEW
+  final int quantity;
 
   const SavedAddressPage({
     super.key,
     this.isFromCheckout = false,
+    this.isSelectionMode = false, // ✅ Default false
     this.artwork,
-    this.quantity = 1, // ✅ Default 1
+    this.quantity = 1,
   });
 
   @override
@@ -133,6 +135,12 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
     required String addressId,
     required Map<String, dynamic> addressSnap,
   }) {
+    // ✅ Handle basic selection mode (for auctions)
+    if (widget.isSelectionMode) {
+      Navigator.pop(context, addressSnap);
+      return;
+    }
+
     if (widget.isFromCheckout && widget.artwork != null) {
       final full = _formatFullAddress(addressSnap);
 
@@ -144,7 +152,7 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
             address: full,
             addressSnapshot: Map<String, dynamic>.from(addressSnap),
             addressId: addressId,
-            quantity: widget.quantity, // ✅ Pass quantity
+            quantity: widget.quantity,
           ),
         ),
       );
@@ -186,9 +194,11 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
 
     return CustomerScaffold(
       currentIndex: -1,
-      title: "Saved Addresses",
-      body: Padding(
-        padding: const EdgeInsets.all(20),
+      title: widget.isSelectionMode
+          ? "Select Delivery Address"
+          : "Saved Addresses",
+      body: Container(
+        color: const Color(0xFFFFF1DC), // Custom background color
         child: Column(
           children: [
             Expanded(
@@ -203,70 +213,94 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
                           );
                         }
                         if (snap.hasError) {
-                          return Center(
-                            child: Text(
-                              snap.error.toString().replaceFirst(
-                                "Exception: ",
-                                "",
-                              ),
-                            ),
-                          );
+                          return Center(child: Text("Error: ${snap.error}"));
                         }
 
                         final docs = snap.data?.docs ?? [];
                         if (docs.isEmpty) {
-                          return const Center(
-                            child: Text("No saved addresses"),
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.location_off_outlined,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  "No saved addresses",
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
                           );
                         }
 
-                        return ListView.builder(
+                        return ListView.separated(
+                          padding: const EdgeInsets.all(20),
                           itemCount: docs.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 16),
                           itemBuilder: (context, index) {
                             final d = docs[index];
                             final a = d.data();
-
-                            final name = (a["name"] ?? "").toString().trim();
-                            final phone = (a["phone"] ?? "").toString().trim();
-                            final address = (a["address"] ?? "")
-                                .toString()
-                                .trim();
-                            final city = (a["city"] ?? "").toString().trim();
-                            final district = (a["district"] ?? "")
-                                .toString()
-                                .trim();
-                            final pincode = (a["pincode"] ?? "")
-                                .toString()
-                                .trim();
-
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _addressCard(
-                                docId: d.id,
-                                addressSnap: a,
-                                name: name,
-                                phone: phone,
-                                address: address,
-                                city: city,
-                                district: district,
-                                pincode: pincode,
-                              ),
-                            );
+                            return _addressCard(d.id, a);
                           },
                         );
                       },
                     ),
             ),
-            OutlinedButton.icon(
-              onPressed: _addAddress,
-              icon: const Icon(Icons.add),
-              label: const Text("Add New Address"),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFE16417),
-                side: const BorderSide(color: Color(0xFFE16417)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 12,
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFE16417), Color(0xFF80431F)],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFE16417).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _addAddress,
+                      borderRadius: BorderRadius.circular(30),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text(
+                              "ADD NEW ADDRESS",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -276,106 +310,159 @@ class _SavedAddressPageState extends State<SavedAddressPage> {
     );
   }
 
-  Widget _addressCard({
-    required String docId,
-    required Map<String, dynamic> addressSnap,
-    required String name,
-    required String phone,
-    required String address,
-    required String city,
-    required String district,
-    required String pincode,
-  }) {
-    final line2Parts = <String>[
+  Widget _addressCard(String docId, Map<String, dynamic> data) {
+    final name = (data["name"] ?? "").toString().trim();
+    final phone = (data["phone"] ?? "").toString().trim();
+    final address = (data["address"] ?? "").toString().trim();
+    final city = (data["city"] ?? "").toString().trim();
+    final district = (data["district"] ?? "").toString().trim();
+    final pincode = (data["pincode"] ?? "").toString().trim();
+
+    final fullAddress = [
+      address,
       if (city.isNotEmpty) city,
       if (district.isNotEmpty) district,
-      if (pincode.isNotEmpty) pincode,
-    ];
+      if (pincode.isNotEmpty) "PIN: $pincode",
+    ].where((s) => s.isNotEmpty).join(", ");
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _selectAddressForCheckout(
-          addressId: docId,
-          addressSnap: addressSnap,
-        ),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10),
-            ],
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      name.isEmpty ? "-" : name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () =>
+              _selectAddressForCheckout(addressId: docId, addressSnap: data),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF8C1A).withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.location_on_outlined,
+                        color: Color(0xFFFF8C1A),
+                        size: 24,
                       ),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        tooltip: "Edit",
-                        onPressed: () =>
-                            _editAddress(docId: docId, current: addressSnap),
-                        icon: const Icon(
-                          Icons.edit,
-                          size: 20,
-                          color: Color(0xFFE16417),
-                        ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                name.isEmpty ? "Address" : name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Color(0xFF1A1A1A),
+                                ),
+                              ),
+                              if (widget.isSelectionMode)
+                                const Icon(
+                                  Icons.touch_app_outlined,
+                                  size: 20,
+                                  color: Colors.blue,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            phone,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            fullAddress,
+                            style: const TextStyle(
+                              color: Color(0xFF4A4A4A),
+                              height: 1.4,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        tooltip: "Delete",
-                        onPressed: () => _deleteAddress(docId: docId),
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          size: 20,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(phone.isEmpty ? "-" : phone),
-              const SizedBox(height: 8),
-              Text(
-                address.isEmpty ? "-" : address,
-                style: const TextStyle(color: Colors.grey),
-              ),
-              if (line2Parts.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  line2Parts.join(", "),
-                  style: const TextStyle(
-                    color: Colors.black54,
-                    fontWeight: FontWeight.w600,
-                  ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () =>
+                          _editAddress(docId: docId, current: data),
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text("Edit"),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.grey[700],
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: () => _deleteAddress(docId: docId),
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text("Delete"),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.red[400],
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                    ),
+                  ],
+                ),
+                if (widget.isFromCheckout)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline,
+                          size: 16,
+                          color: Colors.green[700],
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          "Tap to deliver here",
+                          style: TextStyle(
+                            color: Colors.green[700],
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
-              if (widget.isFromCheckout)
-                const Padding(
-                  padding: EdgeInsets.only(top: 10),
-                  child: Text(
-                    "Tap to deliver to this address",
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
       ),
