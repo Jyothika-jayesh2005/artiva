@@ -55,7 +55,6 @@ class ArtivaApp extends StatelessWidget {
       home: const SplashScreen(),
       routes: {
         '/splash': (_) => const SplashScreen(),
-
         '/welcome': (_) => const WelcomeScreen(),
         '/login': (_) => const LoginScreen(),
         '/register': (_) => const RegisterScreen(),

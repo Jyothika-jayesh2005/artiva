@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/backend/models.dart';
 import 'package:artiva/backend/auction_service.dart';
+import 'package:artiva/widgets/admin_scaffold.dart';
 
 class AdminAuctionDeliveryPage extends StatefulWidget {
   const AdminAuctionDeliveryPage({super.key});
@@ -116,14 +117,8 @@ class _AdminAuctionDeliveryPageState extends State<AdminAuctionDeliveryPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              "Recent Deliveries",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
+            // Removed redundant "Recent Deliveries" text as per design
+            const SizedBox(),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -164,26 +159,26 @@ class _AdminAuctionDeliveryPageState extends State<AdminAuctionDeliveryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Auction>>(
-      stream: _service.getAuctions(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text("Error: ${snapshot.error}"));
-        }
+    return AdminScaffold(
+      title: "Delivery Details",
+      body: StreamBuilder<List<Auction>>(
+        stream: _service.getAuctions(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          }
 
-        final allAuctions = snapshot.data ?? [];
-        final soldAuctions = allAuctions
-            .where((a) => a.status == AuctionStatus.sold)
-            .toList();
+          final allAuctions = snapshot.data ?? [];
+          final soldAuctions = allAuctions
+              .where((a) => a.status == AuctionStatus.sold)
+              .toList();
 
-        final filtered = soldAuctions.where(_matchesFilter).toList();
+          final filtered = soldAuctions.where(_matchesFilter).toList();
 
-        return Scaffold(
-          backgroundColor: const Color(0xFFFAFAFA),
-          body: Padding(
+          return Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             child: Column(
               children: [
@@ -223,9 +218,9 @@ class _AdminAuctionDeliveryPageState extends State<AdminAuctionDeliveryPage> {
                   ),
               ],
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -289,13 +284,19 @@ class _DeliveryCard extends StatelessWidget {
     if (status == OrderStatus.delivered) statusColor = Colors.green;
     if (status == OrderStatus.pending) statusColor = Colors.orange;
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 0,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08), // ✅ Added Shadow for lift
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.shade300), // ✅ Darker border
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

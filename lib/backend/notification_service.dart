@@ -168,8 +168,9 @@ class NotificationService {
                 // On subsequent updates, always alert (isFirstLoad is false)
                 bool shouldAlert = !isRead && !isSold;
                 if (isFirstLoad && createdAt != null) {
+                  // Only alert if sent within the last 3 minutes (prevents spam on re-launch)
                   shouldAlert =
-                      shouldAlert && now.difference(createdAt).inMinutes < 15;
+                      shouldAlert && now.difference(createdAt).inMinutes < 3;
                 }
 
                 if (shouldAlert) {

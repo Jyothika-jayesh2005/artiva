@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:artiva/backend/models.dart';
+import 'package:artiva/widgets/customer_scaffold.dart'; // ✅ Added import
 
 class OrderTrackingPage extends StatelessWidget {
   final Auction auction;
@@ -8,18 +9,10 @@ class OrderTrackingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F9),
-      appBar: AppBar(
-        title: const Text(
-          "Track Order",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
-        centerTitle: true,
-      ),
+    return CustomerScaffold(
+      currentIndex: 2, // Keep Auction tab active
+      title: "Track Order",
+      showBackButton: true,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -55,6 +48,7 @@ class OrderTrackingPage extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _buildAddressCard(),
+            const SizedBox(height: 40), // Bottom padding
           ],
         ),
       ),
@@ -183,6 +177,7 @@ class OrderTrackingPage extends StatelessWidget {
             date: placedDate,
             isActive: true,
             isCompleted: activeStep >= 0,
+            isPassed: activeStep > 0, // Line colored only if passed
             isLast: false,
           ),
           _timelineStep(
@@ -190,6 +185,7 @@ class OrderTrackingPage extends StatelessWidget {
             date: shippedDate,
             isActive: activeStep >= 1,
             isCompleted: activeStep >= 1,
+            isPassed: activeStep > 1, // Line colored only if passed
             isLast: false,
           ),
           _timelineStep(
@@ -197,6 +193,7 @@ class OrderTrackingPage extends StatelessWidget {
             date: deliveredDate,
             isActive: activeStep >= 2,
             isCompleted: activeStep >= 2,
+            isPassed: activeStep > 2,
             isLast: true,
           ),
         ],
@@ -209,10 +206,19 @@ class OrderTrackingPage extends StatelessWidget {
     required DateTime? date,
     required bool isActive,
     required bool isCompleted,
+    required bool isPassed, // ✅ Controls line color
     required bool isLast,
   }) {
-    final color = isActive ? const Color(0xFFFF8C1A) : Colors.grey[300]!;
-    final textColor = isActive ? Colors.black87 : Colors.grey[500];
+    // If not active yet, text is grey
+    final textColor = isActive ? Colors.black87 : Colors.grey[400];
+
+    // Circle Color: Orange if completed, Transparent(Grey Border) if not
+    final circleColor = isCompleted
+        ? const Color(0xFFFF8C1A)
+        : Colors.transparent;
+    final borderColor = isCompleted
+        ? const Color(0xFFFF8C1A)
+        : Colors.grey[300]!;
 
     return IntrinsicHeight(
       child: Row(
@@ -225,15 +231,8 @@ class OrderTrackingPage extends StatelessWidget {
                 height: 24,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isCompleted
-                      ? const Color(0xFFFF8C1A)
-                      : Colors.transparent,
-                  border: Border.all(
-                    color: isCompleted
-                        ? const Color(0xFFFF8C1A)
-                        : Colors.grey[300]!,
-                    width: 2,
-                  ),
+                  color: circleColor,
+                  border: Border.all(color: borderColor, width: 2),
                 ),
                 child: isCompleted
                     ? const Icon(Icons.check, size: 14, color: Colors.white)
@@ -243,9 +242,10 @@ class OrderTrackingPage extends StatelessWidget {
                 Expanded(
                   child: Container(
                     width: 2,
-                    color: isCompleted
-                        ? const Color(0xFFFF8C1A).withOpacity(0.3)
-                        : Colors.grey[200],
+                    // Line follows "isPassed" logic
+                    color: isPassed
+                        ? const Color(0xFFFF8C1A)
+                        : Colors.grey[300],
                   ),
                 ),
             ],
