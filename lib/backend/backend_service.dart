@@ -65,6 +65,8 @@ class BackendService {
         return OrderStatus.shipped;
       case 'delivered':
         return OrderStatus.delivered;
+      case 'cancelled':
+        return OrderStatus.cancelled;
 
       default:
         return OrderStatus.pending;
@@ -415,7 +417,7 @@ class BackendService {
         .collection('orders')
         .orderBy('orderedAt', descending: true)
         .get();
-    return snap.docs.map(_orderFromDoc).toList();
+    return snap.docs.map(ArtworkOrder.fromDoc).toList();
   }
 
   // ✅ NEW: Stream for real-time updates (admin notification)
@@ -424,7 +426,7 @@ class BackendService {
         .collection('orders')
         .orderBy('orderedAt', descending: true)
         .snapshots()
-        .map((s) => s.docs.map(_orderFromDoc).toList());
+        .map((s) => s.docs.map(ArtworkOrder.fromDoc).toList());
   }
 
   Future<List<ArtworkOrder>> getMyOrdersByUid(String uid) async {
@@ -434,7 +436,7 @@ class BackendService {
         // .orderBy('orderedAt', descending: true) // REMOVED to avoid index
         .get();
 
-    final list = snap.docs.map(_orderFromDoc).toList();
+    final list = snap.docs.map(ArtworkOrder.fromDoc).toList();
 
     // Sort in-memory
     list.sort((a, b) => b.orderedAt.compareTo(a.orderedAt));
@@ -444,6 +446,56 @@ class BackendService {
   Future<void> updateOrderStatus(String orderId, OrderStatus status) async {
     await _db.collection('orders').doc(orderId).update({
       'status': _statusToString(status),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> cancelOrder(String orderId, String? artId, int qty) async {
+    final orderRef = _db.collection('orders').doc(orderId);
+
+    await _db.runTransaction((tx) async {
+      final orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) throw Exception("Order not found");
+
+      final data = orderSnap.data()!;
+      if (_asString(data['status']) == 'shipped' ||
+          _asString(data['status']) == 'delivered') {
+        throw Exception("Cannot cancel shipped or delivered orders");
+      }
+
+      // Restore Stock if artId exists
+      // READ FIRST
+      DocumentReference? artRef;
+      DocumentSnapshot? artSnap;
+
+      if (artId != null && artId.isNotEmpty && qty > 0) {
+        artRef = _db.collection('artworks').doc(artId);
+        artSnap = await tx.get(artRef); // ✅ Now reading before any write
+      }
+
+      // Update Order Status (WRITE 1)
+      tx.update(orderRef, {
+        'status': 'cancelled',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Update Stock (WRITE 2)
+      if (artRef != null && artSnap != null && artSnap.exists) {
+        final data = artSnap.data() as Map<String, dynamic>?;
+        final currentSold = data != null ? _asInt(data['soldQuantity']) : 0;
+        final newSold = (currentSold - qty).clamp(0, 999999);
+
+        tx.update(artRef, {
+          'soldQuantity': newSold,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+
+  Future<void> markOrderRefunded(String orderId) async {
+    await _db.collection('orders').doc(orderId).update({
+      'refunded': true,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -925,3 +977,8 @@ class BackendService {
     );
   }
 }
+
+// Helper removed as we switched to ArtworkOrder.fromDoc
+// ArtworkOrder _orderFromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
+//   return ArtworkOrder.fromDoc(d);
+// }

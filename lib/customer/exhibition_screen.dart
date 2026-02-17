@@ -204,7 +204,7 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
                       ],
                     ),
                     child: Text(
-                      "₹${e.pricePerSeat}",
+                      "₹${_formatPrice(e.pricePerSeat)}",
                       style: const TextStyle(
                         color: Color(0xFF1A1A1A),
                         fontWeight: FontWeight.w900,
@@ -376,5 +376,20 @@ class _ExhibitionScreenState extends State<ExhibitionScreen> {
   String _formatDateTime(DateTime dt) {
     // ... existing implementation ...
     return "${dt.day}/${dt.month}/${dt.year} • ${dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour)}:${dt.minute.toString().padLeft(2, '0')} ${dt.hour >= 12 ? 'PM' : 'AM'}";
+  }
+
+  String _formatPrice(int price) {
+    if (price <= 0) return "0";
+    final s = price.toString();
+    final last3 = s.length > 3 ? s.substring(s.length - 3) : s;
+    final rest = s.length > 3 ? s.substring(0, s.length - 3) : "";
+
+    if (rest.isEmpty) return last3;
+
+    // Indian formatting: comma every 2 digits for the rest
+    final reg = RegExp(r'(\d+?)(?=(\d{2})+(?!\d))');
+    final formattedRest = rest.replaceAllMapped(reg, (m) => '${m[1]},');
+
+    return "$formattedRest,$last3";
   }
 }

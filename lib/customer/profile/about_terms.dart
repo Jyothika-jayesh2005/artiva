@@ -26,10 +26,10 @@ class AboutTermsPage extends StatelessWidget {
           ),
 
           _Section(
-            title: "2. Orders Are Final",
+            title: "2. Order Cancellation & Refunds",
             body:
-                "All artwork purchases are final. No returns, refunds, or cancellations "
-                "are allowed once an order is confirmed. Review all artwork details carefully before payment.",
+                "Orders can be cancelled before they are shipped. Once cancelled, refunds are processed within 7 days. "
+                "Returns are not accepted after delivery unless the item is damaged.",
           ),
 
           _Section(
@@ -106,10 +106,7 @@ class _HeaderCard extends StatelessWidget {
           SizedBox(height: 6),
           Text(
             "Simple. Transparent. Binding.",
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
         ],
       ),

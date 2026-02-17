@@ -14,7 +14,8 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
   final BackendService backend = BackendService();
 
   // ✅ UI filter state (PAID removed)
-  String _statusFilter = "All"; // All / Pending / Shipped / Delivered
+  String _statusFilter =
+      "All"; // All / Pending / Shipped / Delivered / Cancelled
 
   // ✅ NEW: Stream Subscription for notifications
   // We need to track previous count to show notification only on NEW orders
@@ -88,7 +89,7 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
       showDragHandle: true,
       builder: (_) {
         // ✅ Paid removed
-        final options = ["All", "Pending", "Shipped", "Delivered"];
+        final options = ["All", "Pending", "Shipped", "Delivered", "Cancelled"];
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
@@ -254,6 +255,8 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
               _chip("Shipped"),
               const SizedBox(width: 10),
               _chip("Delivered"),
+              const SizedBox(width: 10),
+              _chip("Cancelled"),
             ],
           ),
         ),
@@ -302,6 +305,7 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
     Color statusColor = Colors.grey;
     if (o.status == OrderStatus.shipped) statusColor = Colors.blue;
     if (o.status == OrderStatus.delivered) statusColor = Colors.green;
+    if (o.status == OrderStatus.cancelled) statusColor = Colors.red;
     if (o.status == OrderStatus.pending) statusColor = Colors.orange;
 
     return Card(
@@ -362,6 +366,66 @@ class _ArtworkOrdersPageState extends State<ArtworkOrdersPage> {
               Text(
                 "Address ID: ${o.addressId}",
                 style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
+
+            // ✅ REFUND ACTION
+            if (o.status == OrderStatus.cancelled) ...[
+              const Divider(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        o.refunded ? Icons.check_circle : Icons.pending,
+                        color: o.refunded ? Colors.green : Colors.red,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        o.refunded ? "Refunded" : "Refund Pending",
+                        style: TextStyle(
+                          color: o.refunded ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (!o.refunded)
+                    TextButton.icon(
+                      onPressed: () async {
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text("Confirm Refund"),
+                            content: const Text(
+                              "Mark this order as refunded? This action cannot be undone.",
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text("Cancel"),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text("Confirm"),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (ok == true) {
+                          await backend.markOrderRefunded(o.id);
+                          _snack("Order marked as refunded");
+                        }
+                      },
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text("Mark Refunded"),
+                      style: TextButton.styleFrom(foregroundColor: Colors.blue),
+                    ),
+                ],
               ),
             ],
           ],

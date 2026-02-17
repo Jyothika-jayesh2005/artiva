@@ -31,207 +31,224 @@ class ArtistInfoSheet extends StatelessWidget {
     final hasFromArtist =
         quote.isNotEmpty || howMade.isNotEmpty || feel.isNotEmpty;
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          // Drag handle
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-              children: [
-                // Header
-                Text(
-                  "About the Artist",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade600,
-                    letterSpacing: 1.0,
+          child: Column(
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    height: 1.2,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+              ),
 
-                if (quote.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE16417).withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFFE16417).withOpacity(0.2),
+              Expanded(
+                child: ListView(
+                  controller: scrollController, // ✅ Connect scrolling
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                  children: [
+                    // Header
+                    Text(
+                      "About the Artist",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600,
+                        letterSpacing: 1.0,
                       ),
+                      textAlign: TextAlign.center,
                     ),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.format_quote_rounded,
-                          color: Color(0xFFE16417),
-                          size: 32,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          quote,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontStyle: FontStyle.italic,
-                            height: 1.5,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF2D2D2D),
+                    const SizedBox(height: 12),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+
+                    if (quote.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE16417).withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFE16417).withOpacity(0.2),
                           ),
-                          textAlign: TextAlign.center,
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                if (statement.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  const Text(
-                    "Artist Statement",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    statement,
-                    style: TextStyle(
-                      fontSize: 15,
-                      height: 1.6,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                ],
-
-                if (hasBehind) ...[
-                  const SizedBox(height: 32),
-                  const Divider(thickness: 1, height: 1),
-                  const SizedBox(height: 32),
-
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.palette_outlined,
-                          color: Colors.blue.shade700,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        "Behind the Artwork",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                        child: Column(
+                          children: [
+                            const Icon(
+                              Icons.format_quote_rounded,
+                              color: Color(0xFFE16417),
+                              size: 32,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              quote,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontStyle: FontStyle.italic,
+                                height: 1.5,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF2D2D2D),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 20),
 
-                  if (inspiration.isNotEmpty)
-                    _section("Inspiration", inspiration),
-                  if (meaning.isNotEmpty) _section("Meaning", meaning),
-                  if (process.isNotEmpty) _section("Creative Process", process),
-                  if (symbolism.isNotEmpty) _section("Symbolism", symbolism),
-                ],
-
-                if (hasFromArtist &&
-                    (howMade.isNotEmpty || feel.isNotEmpty)) ...[
-                  const SizedBox(height: 32),
-                  const Divider(thickness: 1, height: 1),
-                  const SizedBox(height: 32),
-
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.person_outline,
-                          color: Colors.purple.shade700,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
+                    if (statement.isNotEmpty) ...[
+                      const SizedBox(height: 24),
                       const Text(
-                        "Insights",
+                        "Artist Statement",
                         style: TextStyle(
-                          fontSize: 20,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        statement,
+                        style: TextStyle(
+                          fontSize: 15,
+                          height: 1.6,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 20),
 
-                  if (howMade.isNotEmpty) _section("How I Made It", howMade),
-                  if (feel.isNotEmpty)
-                    _section("What Viewers Should Feel", feel),
-                ],
-              ],
-            ),
-          ),
+                    if (hasBehind) ...[
+                      const SizedBox(height: 32),
+                      const Divider(thickness: 1, height: 1),
+                      const SizedBox(height: 32),
 
-          // Close button bottom
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SafeArea(
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: BorderSide(color: Colors.grey.shade300),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.palette_outlined,
+                              color: Colors.blue.shade700,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            "Behind the Artwork",
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      if (inspiration.isNotEmpty)
+                        _section("Inspiration", inspiration),
+                      if (meaning.isNotEmpty) _section("Meaning", meaning),
+                      if (process.isNotEmpty)
+                        _section("Creative Process", process),
+                      if (symbolism.isNotEmpty)
+                        _section("Symbolism", symbolism),
+                    ],
+
+                    if (hasFromArtist &&
+                        (howMade.isNotEmpty || feel.isNotEmpty)) ...[
+                      const SizedBox(height: 32),
+                      const Divider(thickness: 1, height: 1),
+                      const SizedBox(height: 32),
+
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.person_outline,
+                              color: Colors.purple.shade700,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            "Insights",
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      if (howMade.isNotEmpty)
+                        _section("How I Made It", howMade),
+                      if (feel.isNotEmpty)
+                        _section("What Viewers Should Feel", feel),
+                    ],
+                  ],
+                ),
+              ),
+
+              // Close button bottom
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SafeArea(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Colors.black, // ✅ White change (Black bg)
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        "Close",
+                        style: TextStyle(
+                          color: Colors.white,
+                        ), // ✅ White change (White text)
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    "Close",
-                    style: TextStyle(color: Colors.black),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

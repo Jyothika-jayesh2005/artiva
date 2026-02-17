@@ -54,7 +54,13 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
   String? imagePath;
   String? imageUrl;
 
-  String selectedMaterial = "Canvas";
+  final materialCtrl = TextEditingController();
+  final coaCtrl = TextEditingController(
+    text: "Yes",
+  ); // Changed to controller for consistency if needed, but let's stick to simple text field for material first as requested.
+  // Wait, COA is still a dropdown (Yes/No), user only asked for material.
+
+  String selectedMaterial = "Canvas"; // REMOVE THIS
   String coa = "Yes";
   String selectedCategory = "Painting";
 
@@ -81,7 +87,7 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     if (categories.contains(cat)) selectedCategory = cat;
 
     final paper = (art["paper"] ?? "").toString();
-    if (paper.isNotEmpty) selectedMaterial = paper;
+    materialCtrl.text = paper.isNotEmpty ? paper : "Canvas";
 
     final coaVal = (art["coa"] ?? "").toString();
     if (coaVal == "Yes" || coaVal == "No") coa = coaVal;
@@ -119,6 +125,7 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
     quantityCtrl.dispose();
     sizeCmCtrl.dispose();
     sizeInCtrl.dispose();
+    materialCtrl.dispose(); // Add this
     // Disposal New fields
     artistNameCtrl.dispose();
     artistStatementCtrl.dispose();
@@ -222,7 +229,8 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
         "category": selectedCategory,
         "price": price,
         "imageUrl": finalUrl,
-        "paper": selectedMaterial,
+
+        "paper": materialCtrl.text.trim(), // Use controller text
         "coa": coa,
         "description": descriptionCtrl.text.trim(),
         "size_cm": sizeCmCtrl.text.trim().isEmpty
@@ -398,19 +406,9 @@ class _AddArtworkPageState extends State<AddArtworkPage> {
                     ),
                   ),
                   const SizedBox(width: 16),
+                  const SizedBox(width: 16),
                   Expanded(
-                    child: _dropdown(
-                      label: "Material",
-                      value: selectedMaterial,
-                      items: const [
-                        "Canvas",
-                        "Paper",
-                        "Wood",
-                        "Acrylic Sheet",
-                        "Other",
-                      ],
-                      onChanged: (v) => setState(() => selectedMaterial = v),
-                    ),
+                    child: _input("Material", materialCtrl, icon: Icons.brush),
                   ),
                 ],
               ),

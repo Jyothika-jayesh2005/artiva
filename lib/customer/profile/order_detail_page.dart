@@ -157,36 +157,117 @@ class OrderDetailPage extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    _timelineStep(
-                      title: "Order Placed",
-                      date: _formatDate(placedDate),
-                      isCompleted: true,
-                      isCurrent: status == OrderStatus.pending,
-                      isLast: false,
-                    ),
-                    _timelineStep(
-                      title: "Shipped",
-                      date: _formatDate(shippedDate),
-                      isCompleted:
-                          status == OrderStatus.shipped ||
-                          status == OrderStatus.delivered,
-                      isCurrent: status == OrderStatus.shipped,
-                      isLast: false,
-                    ),
-                    _timelineStep(
-                      title: "Delivered",
-                      date: _formatDate(deliveryDate),
-                      isCompleted: status == OrderStatus.delivered,
-                      isCurrent: status == OrderStatus.delivered,
-                      isLast: true,
-                    ),
+                    if (status == OrderStatus.cancelled) ...[
+                      _timelineStep(
+                        title: "Order Placed",
+                        date: _formatDate(placedDate),
+                        isCompleted: true,
+                        isCurrent: false,
+                        isLast: false,
+                      ),
+                      _timelineStep(
+                        title: "Cancelled",
+                        date: order.updatedAt != null
+                            ? _formatDate(order.updatedAt!)
+                            : "Refund Processing",
+                        isCompleted: true,
+                        isCurrent:
+                            !order.refunded, // Only current if NOT refunded
+                        isLast: !order.refunded,
+                        isCancelled: true,
+                      ),
+                      if (order.refunded)
+                        _timelineStep(
+                          title: "Refunded",
+                          date: order.updatedAt != null
+                              ? _formatDate(order.updatedAt!)
+                              : "Refund Completed",
+                          isCompleted: true,
+                          isCurrent: true,
+                          isLast: true,
+                          isRefunded: true, // New flag
+                        ),
+                    ] else ...[
+                      _timelineStep(
+                        title: "Order Placed",
+                        date: _formatDate(placedDate),
+                        isCompleted: true,
+                        isCurrent: status == OrderStatus.pending,
+                        isLast: false,
+                      ),
+                      _timelineStep(
+                        title: "Shipped",
+                        date: _formatDate(shippedDate),
+                        isCompleted:
+                            status == OrderStatus.shipped ||
+                            status == OrderStatus.delivered,
+                        isCurrent: status == OrderStatus.shipped,
+                        isLast: false,
+                      ),
+                      _timelineStep(
+                        title: "Delivered",
+                        date: _formatDate(deliveryDate),
+                        isCompleted: status == OrderStatus.delivered,
+                        isCurrent: status == OrderStatus.delivered,
+                        isLast: true,
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(height: 24),
 
-              // 5. Estimated / Delivered Banner
-              if (status != OrderStatus.delivered)
+              // 5. Estimated / Delivered / Cancelled Banner
+              if (status == OrderStatus.cancelled)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: order.refunded
+                        ? Colors.green.shade50
+                        : Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: order.refunded
+                          ? Colors.green.shade100
+                          : Colors.red.shade100,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        order.refunded
+                            ? Icons.check_circle_outline
+                            : Icons.info_outline,
+                        color: order.refunded ? Colors.green : Colors.red,
+                        size: 32,
+                      ),
+                      const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                      Text(
+                        order.refunded ? "Refunded" : "Order Cancelled",
+                        style: TextStyle(
+                          color: order.refunded ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        order.refunded
+                            ? "Refund has been initiated."
+                            : "Refund will be initiated within 7 days.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: order.refunded ? Colors.green : Colors.red,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (status != OrderStatus.delivered)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -332,13 +413,25 @@ class OrderDetailPage extends StatelessWidget {
     required bool isCompleted,
     required bool isCurrent,
     required bool isLast,
+    bool isCancelled = false,
+    bool isRefunded = false, // ✅ Added flag
   }) {
-    Color color = isCompleted || isCurrent
-        ? const Color(0xFFE16417)
-        : Colors.grey.shade300;
+    Color color = isRefunded
+        ? Colors.green
+        : (isCancelled
+              ? Colors.red
+              : (isCompleted || isCurrent
+                    ? const Color(0xFFE16417)
+                    : Colors.grey.shade300));
+
     Color textColor = isCompleted || isCurrent
         ? const Color(0xFF1A1A1A)
         : Colors.grey;
+
+    if (isRefunded)
+      textColor = Colors.green;
+    else if (isCancelled)
+      textColor = Colors.red;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,12 +494,13 @@ class OrderDetailPage extends StatelessWidget {
                   color: const Color(0xFFFFF1DC),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
+                child: Text(
                   "Current Status",
                   style: TextStyle(
                     fontSize: 11,
-                    color: Color(0xFFE16417),
-                    fontWeight: FontWeight.bold,
+                    color: isRefunded
+                        ? Colors.green
+                        : (isCancelled ? Colors.red : const Color(0xFFE16417)),
                   ),
                 ),
               ),

@@ -168,7 +168,7 @@ class ExhibitionBooking {
 
 // ---------------- ORDERS ----------------
 
-enum OrderStatus { pending, shipped, delivered }
+enum OrderStatus { pending, shipped, delivered, cancelled }
 
 class ArtworkOrder {
   final String id;
@@ -190,6 +190,8 @@ class ArtworkOrder {
   final String? review;
   final DateTime? ratedAt;
   final bool ratingLocked;
+  final bool refunded;
+  final DateTime? updatedAt; // ✅ Added field
 
   ArtworkOrder({
     required this.id,
@@ -211,6 +213,8 @@ class ArtworkOrder {
     this.review,
     this.ratedAt,
     this.ratingLocked = false,
+    this.refunded = false,
+    this.updatedAt, // ✅ Added to constructor
   });
 
   // ✅ HELPERS for UI
@@ -227,8 +231,9 @@ class ArtworkOrder {
     final delDt = estimatedDeliveryDate;
     final delDay = DateTime(delDt.year, delDt.month, delDt.day);
 
-    // If explicitly delivered, stay delivered
+    // If explicitly delivered or cancelled, stay that way
     if (status == OrderStatus.delivered) return OrderStatus.delivered;
+    if (status == OrderStatus.cancelled) return OrderStatus.cancelled;
 
     // Auto-update logic: If today is ON or AFTER the target date
     if (!today.isBefore(delDay)) return OrderStatus.delivered;
@@ -244,6 +249,7 @@ class ArtworkOrder {
     DateTime? ratedAt,
     bool? ratingLocked,
     OrderStatus? status,
+    DateTime? updatedAt, // ✅ Added
   }) {
     return ArtworkOrder(
       id: id,
@@ -265,6 +271,37 @@ class ArtworkOrder {
       review: review ?? this.review,
       ratedAt: ratedAt ?? this.ratedAt,
       ratingLocked: ratingLocked ?? this.ratingLocked,
+      refunded: refunded, // Keep existing
+      updatedAt: updatedAt ?? this.updatedAt, // ✅ Added
+    );
+  }
+
+  factory ArtworkOrder.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data()!;
+    return ArtworkOrder(
+      id: doc.id,
+      artId: (data["artId"] ?? "").toString(),
+      artTitle: (data["artTitle"] ?? "").toString(),
+      customerName: (data["customerName"] ?? "").toString(),
+      customerEmail: (data["customerEmail"] ?? "").toString(),
+      quantity: _toInt(data["quantity"]),
+      price: _toInt(data["price"]),
+      imageUrl: (data["imageUrl"] ?? "").toString(),
+      address: (data["address"] ?? "").toString(),
+      addressSnapshot: data["addressSnapshot"] is Map
+          ? Map<String, dynamic>.from(data["addressSnapshot"])
+          : null,
+      addressId: data["addressId"]?.toString(),
+      sizeCm: data["size_cm"]?.toString(),
+      sizeIn: data["size_in"]?.toString(),
+      status: _parseOrderStatus(data["status"]),
+      orderedAt: _parseDateTime(data["orderedAt"]),
+      rating: data["rating"] != null ? _toInt(data["rating"]) : null,
+      review: data["review"]?.toString(),
+      ratedAt: _parseDateTime(data["ratedAt"]),
+      ratingLocked: data["ratingLocked"] == true,
+      refunded: data["refunded"] == true,
+      updatedAt: _parseDateTime(data["updatedAt"]), // ✅ Added
     );
   }
 }
@@ -443,6 +480,7 @@ OrderStatus _parseOrderStatus(dynamic v) {
   final s = v?.toString().toLowerCase() ?? "";
   if (s == "shipped") return OrderStatus.shipped;
   if (s == "delivered") return OrderStatus.delivered;
+  if (s == "cancelled") return OrderStatus.cancelled;
   return OrderStatus.pending;
 }
 

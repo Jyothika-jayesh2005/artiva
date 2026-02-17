@@ -28,7 +28,10 @@ class ProfileScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Color.fromARGB(255, 20, 20, 20)),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),

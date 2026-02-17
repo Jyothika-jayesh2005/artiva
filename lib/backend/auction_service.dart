@@ -115,6 +115,14 @@ class AuctionService {
     return Auction.fromMap(doc.id, doc.data()!);
   }
 
+  // ✅ Stream for a single auction (Real-time updates)
+  Stream<Auction> getAuctionStream(String id) {
+    return _db.collection("auctions").doc(id).snapshots().map((doc) {
+      if (!doc.exists) throw Exception("Auction not found");
+      return Auction.fromMap(doc.id, doc.data()!);
+    });
+  }
+
   // updateEndedAuctions is now handled by Cloud Functions
 
   // Update payment deadline (e.g. for final warning)

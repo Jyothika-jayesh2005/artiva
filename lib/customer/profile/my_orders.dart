@@ -112,7 +112,21 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
         ? order.estimatedDeliveryDate
         : order.estimatedDeliveryDate;
     final dateLabel = isDelivered ? "Delivered" : "Est. Delivery";
-    final statusColor = isDelivered ? Colors.green : const Color(0xFF2196F3);
+    Color statusColor = isDelivered ? Colors.green : const Color(0xFF2196F3);
+    if (status == OrderStatus.cancelled) statusColor = Colors.red;
+
+    String statusText = isDelivered ? "Delivered" : "In Transit";
+    IconData statusIcon = isDelivered
+        ? Icons.check_circle
+        : Icons.local_shipping_outlined;
+
+    if (status == OrderStatus.cancelled) {
+      statusText = "Cancelled";
+      statusIcon = Icons.cancel_outlined;
+    } else if (status == OrderStatus.pending) {
+      statusText = "Pending";
+      statusIcon = Icons.timer_outlined;
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -167,16 +181,10 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            isDelivered
-                                ? Icons.check_circle
-                                : Icons.local_shipping_outlined,
-                            size: 14,
-                            color: statusColor,
-                          ),
+                          Icon(statusIcon, size: 14, color: statusColor),
                           const SizedBox(width: 4),
                           Text(
-                            isDelivered ? "Delivered" : "In Transit",
+                            statusText,
                             style: TextStyle(
                               color: statusColor,
                               fontSize: 11,
@@ -327,6 +335,97 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
                       ),
                     ),
                   ),
+
+                // ✅ CANCEL BUTTON (Only for pending)
+                if (status == OrderStatus.pending)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _busy
+                            ? null
+                            : () async {
+                                final ok = await showDialog<bool>(
+                                  context: context,
+                                  builder: (_) => AlertDialog(
+                                    title: const Text("Cancel Order?"),
+                                    content: const Text(
+                                      "Are you sure you want to cancel this order? Item quantity will be restored.",
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: const Text("No"),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        child: const Text(
+                                          "Yes, Cancel",
+                                          style: TextStyle(color: Colors.red),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (ok != true) return;
+
+                                setState(() => _busy = true);
+                                try {
+                                  await backend.cancelOrder(
+                                    order.id,
+                                    order.artId,
+                                    order.quantity,
+                                  );
+
+                                  // Update local state
+                                  final idx = _orders!.indexWhere(
+                                    (o) => o.id == order.id,
+                                  );
+                                  if (idx != -1) {
+                                    _orders![idx] = order.copyWith(
+                                      status: OrderStatus.cancelled,
+                                    );
+                                  }
+
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Order cancelled successfully",
+                                        ),
+                                      ),
+                                    );
+                                    setState(() {});
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text("Error: $e"),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                } finally {
+                                  if (mounted) setState(() => _busy = false);
+                                }
+                              },
+                        icon: const Icon(Icons.cancel_outlined, size: 16),
+                        label: const Text("Cancel Order"),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -360,7 +459,7 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
   }
 
   Future<void> _openRatingDialog(ArtworkOrder order) async {
-    int selected = 5;
+    int selected = 0;
     final ctrl = TextEditingController();
 
     final ok = await showDialog<bool>(
@@ -413,11 +512,13 @@ class _MyOrdersPageState extends State<MyOrdersPage> {
               child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text(
+              onPressed: selected > 0
+                  ? () => Navigator.pop(context, true)
+                  : null,
+              child: Text(
                 "Submit",
                 style: TextStyle(
-                  color: Color(0xFFE16417),
+                  color: selected > 0 ? const Color(0xFFE16417) : Colors.grey,
                   fontWeight: FontWeight.bold,
                 ),
               ),

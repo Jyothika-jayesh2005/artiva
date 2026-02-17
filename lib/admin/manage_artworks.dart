@@ -18,6 +18,7 @@ class ManageArtworksPage extends StatefulWidget {
 
 class _ManageArtworksPageState extends State<ManageArtworksPage> {
   StockFilter _stockFilter = StockFilter.all;
+  String _selectedCategory = "All"; // ✅ Added category filter
 
   final TextEditingController _search = TextEditingController();
 
@@ -61,11 +62,9 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
     return true;
   }
 
-  Widget _chip(String text, StockFilter value) {
-    final bool active = _stockFilter == value;
-
+  Widget _chip(String text, bool active, VoidCallback onTap) {
     return GestureDetector(
-      onTap: () => setState(() => _stockFilter = value),
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -83,6 +82,14 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _stockChip(String text, StockFilter value) {
+    return _chip(
+      text,
+      _stockFilter == value,
+      () => setState(() => _stockFilter = value),
     );
   }
 
@@ -153,11 +160,11 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
-                    _chip("All", StockFilter.all),
+                    _stockChip("All", StockFilter.all),
                     const SizedBox(width: 10),
-                    _chip("In Stock", StockFilter.inStock),
+                    _stockChip("In Stock", StockFilter.inStock),
                     const SizedBox(width: 10),
-                    _chip("Out of Stock", StockFilter.outOfStock),
+                    _stockChip("Out of Stock", StockFilter.outOfStock),
                   ],
                 ),
               ),
@@ -176,55 +183,118 @@ class _ManageArtworksPageState extends State<ManageArtworksPage> {
                       return Center(child: Text("Error: ${snap.error}"));
                     }
 
-                    var artworks = snap.data ?? [];
+                    var allArtworks = snap.data ?? [];
 
-                    // Apply both filters
-                    artworks = artworks
-                        .where(_matchesSearch)
-                        .where(_matchesStockFilter)
-                        .toList();
-
-                    if (artworks.isEmpty) {
-                      return const Center(child: Text("No artworks found"));
+                    // 1. Calculate Categories & Counts
+                    final Map<String, int> counts = {"All": allArtworks.length};
+                    for (var art in allArtworks) {
+                      final cat = (art["category"] ?? "Uncategorized")
+                          .toString()
+                          .trim();
+                      if (cat.isEmpty) continue;
+                      counts[cat] = (counts[cat] ?? 0) + 1;
                     }
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-                      itemCount: artworks.length,
-                      itemBuilder: (context, index) {
-                        final art = artworks[index];
+                    // Sort categories alphabetic but "All" first
+                    final categories =
+                        counts.keys.where((k) => k != "All").toList()..sort();
+                    categories.insert(0, "All");
 
-                        final String id = (art["id"] ?? "").toString().trim();
-                        final String title = (art["title"] ?? "-").toString();
-                        final String category = (art["category"] ?? "")
-                            .toString();
+                    // 2. Apply Filters
+                    var filtered = allArtworks.where((art) {
+                      // Search
+                      if (!_matchesSearch(art)) return false;
+                      // Stock
+                      if (!_matchesStockFilter(art)) return false;
+                      // Category
+                      if (_selectedCategory != "All") {
+                        final cat = (art["category"] ?? "Uncategorized")
+                            .toString()
+                            .trim();
+                        if (cat != _selectedCategory) return false;
+                      }
+                      return true;
+                    }).toList();
 
-                        final int total = _toInt(art["totalQuantity"]);
-                        final int sold = _toInt(art["soldQuantity"]);
-                        final int remaining = (total - sold) < 0
-                            ? 0
-                            : (total - sold);
+                    return Column(
+                      children: [
+                        // ✅ Category Chips
+                        SizedBox(
+                          height: 42,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: categories.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 10),
+                            itemBuilder: (context, index) {
+                              final cat = categories[index];
+                              final count = counts[cat] ?? 0;
+                              return _chip(
+                                "$cat ($count)",
+                                _selectedCategory == cat,
+                                () => setState(() => _selectedCategory = cat),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 12),
 
-                        final String image =
-                            (art["imageUrl"] ??
-                                    art["imagePath"] ??
-                                    art["image"] ??
-                                    "")
-                                .toString()
-                                .trim();
+                        // ✅ List
+                        Expanded(
+                          child: filtered.isEmpty
+                              ? const Center(child: Text("No artworks found"))
+                              : ListView.builder(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    8,
+                                    16,
+                                    96,
+                                  ),
+                                  itemCount: filtered.length,
+                                  itemBuilder: (context, index) {
+                                    final art = filtered[index];
+                                    final String id = (art["id"] ?? "")
+                                        .toString()
+                                        .trim();
+                                    final String title = (art["title"] ?? "-")
+                                        .toString();
+                                    final String category =
+                                        (art["category"] ?? "").toString();
 
-                        final int price = _toIntPrice(art["price"]);
+                                    final int total = _toInt(
+                                      art["totalQuantity"],
+                                    );
+                                    final int sold = _toInt(
+                                      art["soldQuantity"],
+                                    );
+                                    final int remaining = (total - sold) < 0
+                                        ? 0
+                                        : (total - sold);
 
-                        return _artCard(
-                          art: art,
-                          id: id,
-                          title: title,
-                          category: category,
-                          remaining: remaining,
-                          price: price,
-                          image: image,
-                        );
-                      },
+                                    final String image =
+                                        (art["imageUrl"] ??
+                                                art["imagePath"] ??
+                                                art["image"] ??
+                                                "")
+                                            .toString()
+                                            .trim();
+
+                                    final int price = _toIntPrice(art["price"]);
+
+                                    return _artCard(
+                                      art: art,
+                                      id: id,
+                                      title: title,
+                                      category: category,
+                                      remaining: remaining,
+                                      price: price,
+                                      image: image,
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
                     );
                   },
                 ),

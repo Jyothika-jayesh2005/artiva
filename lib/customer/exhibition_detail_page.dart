@@ -41,7 +41,7 @@ class _ExhibitionDetailPageState extends State<ExhibitionDetailPage> {
                   transform: Matrix4.translationValues(0, -40, 0),
                   padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: const Color(0xFFFFF1DC), // ✅ Changed to cream
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(32),
                     ),
@@ -207,7 +207,7 @@ class _ExhibitionDetailPageState extends State<ExhibitionDetailPage> {
             child: Container(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFFFFF1DC), // ✅ Changed to cream
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -220,41 +220,57 @@ class _ExhibitionDetailPageState extends State<ExhibitionDetailPage> {
                 top: false,
                 child: SizedBox(
                   width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: remaining == 0
-                        ? null
-                        : () async {
-                            final seats = await _pickSeats(context, remaining);
-                            if (seats == null) return;
-                            if (!context.mounted) return;
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ExhibitionPaymentPage(
-                                  exhibition: widget.exhibition,
-                                  seats: seats,
-                                ),
-                              ),
-                            );
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF8C1A),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade300,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 0,
-                      shadowColor: Colors.transparent,
+                  height: 50, // ✅ Reduced height (was 56)
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: remaining > 0
+                          ? const LinearGradient(
+                              colors: [
+                                Color(0xFFE16417),
+                                Color(0xFF80431F),
+                              ], // ✅ Gradient
+                            )
+                          : null,
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Text(
-                      remaining == 0 ? "Sold Out" : "Book Seats",
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
+                    child: ElevatedButton(
+                      onPressed: remaining == 0
+                          ? null
+                          : () async {
+                              final seats = await _pickSeats(
+                                context,
+                                remaining,
+                              );
+                              if (seats == null) return;
+                              if (!context.mounted) return;
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ExhibitionPaymentPage(
+                                    exhibition: widget.exhibition,
+                                    seats: seats,
+                                  ),
+                                ),
+                              );
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent, // ✅ Transparent
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        shadowColor: Colors.transparent, // ✅ No shadow
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        remaining == 0 ? "Sold Out" : "Book Seats",
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ),

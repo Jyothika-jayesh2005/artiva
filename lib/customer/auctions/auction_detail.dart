@@ -19,19 +19,21 @@ class AuctionDetailScreen extends StatefulWidget {
 class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
   final AuctionService _auctionService = AuctionService();
   final TextEditingController _bidController = TextEditingController();
+  late Stream<Auction> _auctionStream; // ✅ Stream
   late Timer _timer;
-  late Duration _remaining;
   bool _isSubmitting = false;
   bool _isDescriptionExpanded = false;
 
   @override
   void initState() {
     super.initState();
-    _remaining = widget.auction.endTime.difference(DateTime.now());
+    _auctionStream = _auctionService.getAuctionStream(
+      widget.auction.id,
+    ); // ✅ Init Stream
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
-          _remaining = widget.auction.endTime.difference(DateTime.now());
+          // Trigger rebuild to update time
         });
       }
     });
@@ -44,7 +46,8 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     super.dispose();
   }
 
-  void _placeBidSheet() {
+  void _placeBidSheet(Auction auction) {
+    // ✅ Accept current auction
     final user = authService.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -109,7 +112,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                "Minimum bid: ₹${widget.auction.currentBid + widget.auction.minIncrement}",
+                "Minimum bid: ₹${auction.currentBid + auction.minIncrement}",
                 style: const TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 20),
@@ -202,312 +205,333 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool hasEnded = _remaining.isNegative;
-    final bool isWinner =
-        widget.auction.highestBidderId == authService.currentUser?.uid;
+    return StreamBuilder<Auction>(
+      stream: _auctionStream,
+      initialData: widget.auction,
+      builder: (context, snapshot) {
+        final auction = snapshot.data ?? widget.auction;
 
-    final artImage = widget.auction.artImageUrl.isNotEmpty
-        ? widget.auction.artImageUrl
-        : "";
+        // Recalculate remaining time for accurate display if endTime changed
+        // (Optional but good for correctness)
+        final effectiveRemaining = auction.endTime.difference(DateTime.now());
+        final bool hasEnded = effectiveRemaining.isNegative;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // Content Scroll
-          SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 110),
-            child: Column(
-              children: [
-                // 1. Full Image Top
-                SizedBox(
-                  width: double.infinity,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.65,
-                      minHeight: 200,
-                    ),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        _imageWidget(artImage, fit: BoxFit.cover),
-                        // Timer Overlay (Top Right of Image)
-                        if (widget.auction.status == AuctionStatus.live)
-                          Positioned(
-                            top: MediaQuery.of(context).padding.top + 10,
-                            right: 20,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.6),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: AuctionListTimer(
-                                endTime: widget.auction.endTime,
-                                compact: true,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
+        // ✅ Real-time Winner Check
+        final bool isWinner =
+            auction.highestBidderId == authService.currentUser?.uid;
 
-                // 2. Info Container (Overlapping)
-                Container(
-                  transform: Matrix4.translationValues(0, -30, 0),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 24,
-                  ),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFFF1DC),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(32),
-                      topRight: Radius.circular(32),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Handle
-                      Center(
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          margin: const EdgeInsets.only(bottom: 20),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
+        final artImage = auction.artImageUrl.isNotEmpty
+            ? auction.artImageUrl
+            : "";
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFFFF1DC),
+          body: Stack(
+            children: [
+              // Content Scroll
+              SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 110),
+                child: Column(
+                  children: [
+                    // 1. Full Image Top
+                    SizedBox(
+                      width: double.infinity,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.65,
+                          minHeight: 200,
                         ),
-                      ),
-
-                      // Title
-                      Text(
-                        widget.auction.artTitle,
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1A1A1A),
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Winner Feedback (if ended)
-                      if (hasEnded) ...[
-                        _buildWinnerFeedback(isWinner),
-                        const SizedBox(height: 24),
-                      ],
-
-                      // Artist Section
-                      const Text(
-                        "Artist",
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
+                        child: Stack(
+                          fit: StackFit.expand,
                           children: [
-                            CircleAvatar(
-                              radius: 22,
-                              backgroundColor: const Color(
-                                0xFFE16417,
-                              ).withOpacity(0.1),
-                              child: const Icon(
-                                Icons.person,
-                                color: Color(0xFFE16417),
+                            _imageWidget(artImage, fit: BoxFit.cover),
+                            // Timer Overlay (Top Right of Image)
+                            if (auction.status == AuctionStatus.live)
+                              Positioned(
+                                top: MediaQuery.of(context).padding.top + 10,
+                                right: 20,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.6),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: AuctionListTimer(
+                                    endTime: auction.endTime,
+                                    compact: true,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // 2. Info Container (Overlapping)
+                    Container(
+                      transform: Matrix4.translationValues(0, -30, 0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 24,
+                      ),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFFF1DC),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(32),
+                          topRight: Radius.circular(32),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Handle
+                          Center(
+                            child: Container(
+                              width: 40,
+                              height: 4,
+                              margin: const EdgeInsets.only(bottom: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(2),
                               ),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
+                          ),
+
+                          // Title
+                          Text(
+                            auction.artTitle,
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1A1A1A),
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Winner Feedback (if ended)
+                          if (hasEnded) ...[
+                            _buildWinnerFeedback(
+                              isWinner,
+                            ), // ✅ Uses updated isWinner
+                            const SizedBox(height: 24),
+                          ],
+
+                          // Artist Section
+                          const Text(
+                            "Artist",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: const Color(
+                                    0xFFE16417,
+                                  ).withOpacity(0.1),
+                                  child: const Icon(
+                                    Icons.person,
+                                    color: Color(0xFFE16417),
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        auction.artistName,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                        ),
+                                      ),
+                                      Text(
+                                        "Creator",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Description & About Piece (Merged)
+                          const Text(
+                            "About the Artwork",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              // Merge text
+                              String fullDesc = auction.description;
+                              if (auction.aboutPiece.isNotEmpty) {
+                                fullDesc += "\n\n${auction.aboutPiece}";
+                              }
+
+                              const int truncationLimit = 150;
+                              final bool isLong =
+                                  fullDesc.length > truncationLimit;
+                              final String textToShow =
+                                  isLong && !_isDescriptionExpanded
+                                  ? "${fullDesc.substring(0, truncationLimit)}..."
+                                  : fullDesc;
+
+                              return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    widget.auction.artistName,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF1A1A1A),
-                                    ),
-                                  ),
-                                  Text(
-                                    "Creator",
+                                    textToShow,
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade500,
+                                      fontSize: 14,
+                                      height: 1.6,
+                                      color: Colors.grey.shade600,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Description & About Piece (Merged)
-                      const Text(
-                        "About the Artwork",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          // Merge text
-                          String fullDesc = widget.auction.description;
-                          if (widget.auction.aboutPiece.isNotEmpty) {
-                            fullDesc += "\n\n${widget.auction.aboutPiece}";
-                          }
-
-                          const int truncationLimit = 150;
-                          final bool isLong = fullDesc.length > truncationLimit;
-                          final String textToShow =
-                              isLong && !_isDescriptionExpanded
-                              ? "${fullDesc.substring(0, truncationLimit)}..."
-                              : fullDesc;
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                textToShow,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  height: 1.6,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                              if (isLong)
-                                InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _isDescriptionExpanded =
-                                          !_isDescriptionExpanded;
-                                    });
-                                  },
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(top: 4.0),
-                                    child: Text(
-                                      _isDescriptionExpanded
-                                          ? "Show Less"
-                                          : "Read More",
-                                      style: const TextStyle(
-                                        color: Color(0xFFE16417),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
+                                  if (isLong)
+                                    InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          _isDescriptionExpanded =
+                                              !_isDescriptionExpanded;
+                                        });
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 4.0,
+                                        ),
+                                        child: Text(
+                                          _isDescriptionExpanded
+                                              ? "Show Less"
+                                              : "Read More",
+                                          style: const TextStyle(
+                                            color: Color(0xFFE16417),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Specs Chips (Size, Start Bid, Incr)
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                if (auction.size.isNotEmpty) ...[
+                                  _specChip(auction.size, "Size", false),
+                                  const SizedBox(width: 12),
+                                ],
+                                _specChip(
+                                  "₹${auction.startingBid}",
+                                  "Start Bid",
+                                  true,
                                 ),
-                            ],
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Specs Chips (Size, Start Bid, Incr)
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            if (widget.auction.size.isNotEmpty) ...[
-                              _specChip(widget.auction.size, "Size", false),
-                              const SizedBox(width: 12),
-                            ],
-                            _specChip(
-                              "₹${widget.auction.startingBid}",
-                              "Start Bid",
-                              true,
+                                const SizedBox(width: 12),
+                                _specChip(
+                                  "₹${auction.minIncrement}",
+                                  "Increment",
+                                  false,
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            _specChip(
-                              "₹${widget.auction.minIncrement}",
-                              "Increment",
-                              false,
+                          ),
+                          const SizedBox(height: 24),
+
+                          const Divider(),
+                          const SizedBox(height: 24),
+
+                          // Bid History
+                          const Text(
+                            "Bid History",
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildBidHistory(),
+                        ],
                       ),
-                      const SizedBox(height: 24),
+                    ),
+                  ],
+                ),
+              ),
 
-                      const Divider(),
-                      const SizedBox(height: 24),
-
-                      // Bid History
-                      const Text(
-                        "Bid History",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildBidHistory(),
-                    ],
+              // Floating Back Button (Top Left)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 10,
+                left: 20,
+                child: CircleAvatar(
+                  backgroundColor: Colors.white,
+                  radius: 20,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.black,
+                      size: 20,
+                    ),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ),
-              ],
-            ),
-          ),
-
-          // Floating Back Button (Top Left)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 10,
-            left: 20,
-            child: CircleAvatar(
-              backgroundColor: Colors.white,
-              radius: 20,
-              child: IconButton(
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.black,
-                  size: 20,
-                ),
-                onPressed: () => Navigator.pop(context),
               ),
-            ),
-          ),
 
-          // Bottom Bar
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _buildBottomAction(hasEnded, isWinner) ?? const SizedBox(),
+              // Bottom Bar
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child:
+                    _buildBottomAction(hasEnded, isWinner, auction) ??
+                    const SizedBox(),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget? _buildBottomAction(bool hasEnded, bool isWinner) {
+  Widget? _buildBottomAction(bool hasEnded, bool isWinner, Auction auction) {
     if (hasEnded) {
-      if (isWinner && widget.auction.status != AuctionStatus.sold) {
+      if (isWinner && auction.status != AuctionStatus.sold) {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: const Color(0xFFFFF1DC),
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(32),
               topRight: Radius.circular(32),
@@ -555,7 +579,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFFF1DC),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(32),
           topRight: Radius.circular(32),
@@ -580,7 +604,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                "₹${widget.auction.currentBid}",
+                "₹${auction.currentBid}",
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -591,7 +615,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
           ),
           const Spacer(),
           InkWell(
-            onTap: _placeBidSheet,
+            onTap: () => _placeBidSheet(auction),
             borderRadius: BorderRadius.circular(30),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),

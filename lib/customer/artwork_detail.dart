@@ -141,8 +141,9 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
         : int.tryParse((widget.artwork["ratingCount"] ?? "").toString()) ?? 0;
 
     return Scaffold(
-      backgroundColor:
-          Colors.white, // Changed to white for image background separation
+      backgroundColor: const Color(
+        0xFFFFF1DC,
+      ), // Changed to cream for image background separation
       body: Stack(
         children: [
           // Content Scroll
@@ -486,6 +487,36 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
                         ),
                       ],
 
+                      const SizedBox(height: 24),
+
+                      // Return & Cancellation Policy
+                      const Text(
+                        "Cancellation Policy",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _policyItem(
+                              "Cancellation",
+                              "You can cancel your order before it has been shipped. Once shipped, cancellations are not allowed.",
+                            ),
+                          ],
+                        ),
+                      ),
+
                       const SizedBox(height: 32),
 
                       // Review Section (Enhanced)
@@ -558,7 +589,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFFFFF1DC),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(32),
                   topRight: Radius.circular(32),
@@ -726,6 +757,31 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
       return Image.asset(path, fit: fit);
     }
     return Image.file(File(path), fit: fit);
+  }
+
+  Widget _policyItem(String title, String content) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFE16417),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          content,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey.shade600,
+            height: 1.5,
+          ),
+        ),
+      ],
+    );
   }
 
   // NEW: Review Summary Bars

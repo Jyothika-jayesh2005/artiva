@@ -80,6 +80,7 @@ class _AdminNotifyWinnerState extends State<AdminNotifyWinner> {
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: "Notify Winner",
+      showBack: true, // ✅ Show back arrow
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection("auctions")
@@ -173,6 +174,9 @@ class _AdminNotifyWinnerState extends State<AdminNotifyWinner> {
                         (alreadySent ? " (Already Sent)" : "");
 
                     return RadioListTile<String>(
+                      activeColor: const Color(
+                        0xFFFF8C1A,
+                      ), // ✅ Changed to orange
                       title: Text(
                         text,
                         style: TextStyle(
