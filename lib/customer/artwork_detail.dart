@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:artiva/customer/artist_info_sheet.dart';
 import 'package:flutter/material.dart';
 
@@ -489,7 +490,7 @@ class _ArtworkDetailsPageState extends State<ArtworkDetailsPage> {
 
                       const SizedBox(height: 24),
 
-                      // Return & Cancellation Policy
+                      // Cancellation Policy
                       const Text(
                         "Cancellation Policy",
                         style: TextStyle(

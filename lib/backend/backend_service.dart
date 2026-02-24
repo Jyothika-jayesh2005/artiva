@@ -627,9 +627,20 @@ class BackendService {
 
       final statusStr = _asString(data['status'], fallback: 'pending');
       final status = _statusFromString(statusStr);
+      final orderedAtTs = data['orderedAt'];
+      final orderedAt = orderedAtTs is Timestamp
+          ? orderedAtTs.toDate()
+          : DateTime.now();
+      final delDay = DateTime(
+        orderedAt.year,
+        orderedAt.month,
+        orderedAt.day + 7,
+      );
+      final today = DateTime.now();
+      final isEffectivelyDelivered = !today.isBefore(delDay);
 
-      // ✅ REQUIREMENT 1: Only allow rating if order is delivered
-      if (status != OrderStatus.delivered) {
+      // ✅ REQUIREMENT 1: Only allow rating if order is delivered (raw or effective)
+      if (status != OrderStatus.delivered && !isEffectivelyDelivered) {
         throw Exception("You can rate only after the order is delivered.");
       }
 
